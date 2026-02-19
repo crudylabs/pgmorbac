@@ -41,7 +41,7 @@ FROM morbac.orgs WHERE name = 'Acme Corp';
 
 -- Grant ability to manage policies
 INSERT INTO morbac.admin_rules (org_id, role_id, admin_activity, admin_target, modality, context_id)
-SELECT 
+SELECT
     o.id,
     r.id,
     'manage',
@@ -54,7 +54,7 @@ WHERE o.name = 'Acme Corp' AND r.name = 'org_admin';
 
 -- Grant ability to manage roles
 INSERT INTO morbac.admin_rules (org_id, role_id, admin_activity, admin_target, modality, context_id)
-SELECT 
+SELECT
     o.id,
     r.id,
     'manage',
@@ -67,7 +67,7 @@ WHERE o.name = 'Acme Corp' AND r.name = 'org_admin';
 
 -- Grant ability to assign ALL roles (wildcard)
 INSERT INTO morbac.admin_rules (org_id, role_id, admin_activity, admin_target, modality, context_id)
-SELECT 
+SELECT
     o.id,
     r.id,
     'assign_role',
@@ -80,7 +80,7 @@ WHERE o.name = 'Acme Corp' AND r.name = 'org_admin';
 
 -- Assign someone as org admin
 INSERT INTO morbac.user_roles (user_id, role_id, org_id)
-SELECT 
+SELECT
     'alice-uuid'::uuid,
     r.id,
     o.id
@@ -101,7 +101,7 @@ FROM morbac.orgs WHERE name = 'Acme Corp';
 
 -- Grant ability to assign specific roles
 INSERT INTO morbac.admin_rules (org_id, role_id, admin_activity, admin_target, modality, context_id)
-SELECT 
+SELECT
     o.id,
     r.id,
     'assign_role',
@@ -115,7 +115,7 @@ WHERE o.name = 'Acme Corp' AND r.name = 'hr_manager';
 
 -- Prohibit assigning admin roles
 INSERT INTO morbac.admin_rules (org_id, role_id, admin_activity, admin_target, modality, context_id)
-SELECT 
+SELECT
     o.id,
     r.id,
     'assign_role',
@@ -139,7 +139,7 @@ FROM morbac.orgs WHERE name = 'Acme Corp';
 
 -- Grant policy management
 INSERT INTO morbac.admin_rules (org_id, role_id, admin_activity, admin_target, modality, context_id)
-SELECT 
+SELECT
     o.id,
     r.id,
     'manage',
@@ -223,7 +223,7 @@ BEGIN
             p_role_id,
             p_org_id
         );
-        
+
         v_result := json_build_object(
             'success', true,
             'message', 'Role assigned successfully'
@@ -234,7 +234,7 @@ BEGIN
             'error', SQLERRM
         );
     END;
-    
+
     RETURN v_result;
 END;
 $$;
@@ -290,7 +290,7 @@ INSERT INTO morbac.contexts (name, description, evaluator) VALUES
 
 -- HR can only assign roles during business hours
 INSERT INTO morbac.admin_rules (org_id, role_id, admin_activity, admin_target, modality, context_id)
-SELECT 
+SELECT
     o.id,
     r.id,
     'assign_role',
@@ -318,8 +318,8 @@ WHERE o.name = 'Acme Corp' AND r.name = 'hr_manager';
 INSERT INTO morbac.orgs (name) VALUES ('Acme Corp');
 
 -- 2. Create roles
-INSERT INTO morbac.roles (org_id, name) 
-SELECT id, name FROM morbac.orgs, 
+INSERT INTO morbac.roles (org_id, name)
+SELECT id, name FROM morbac.orgs,
     (VALUES ('org_admin'), ('hr_manager'), ('employee'), ('manager')) AS roles(name)
 WHERE morbac.orgs.name = 'Acme Corp';
 
@@ -328,7 +328,7 @@ INSERT INTO morbac.admin_rules (org_id, role_id, admin_activity, admin_target, m
 SELECT o.id, r.id, activity, target, 'permission', c.id
 FROM morbac.orgs o
 JOIN morbac.roles r ON r.org_id = o.id
-CROSS JOIN (VALUES 
+CROSS JOIN (VALUES
     ('manage', 'policies'),
     ('manage', 'roles'),
     ('assign_role', '*')
@@ -356,7 +356,7 @@ WHERE o.name = 'Acme Corp' AND r.name = 'org_admin';
 SELECT morbac.admin_assign_role(
     'alice-uuid'::uuid,
     'bob-uuid'::uuid,
-    (SELECT id FROM morbac.roles WHERE name = 'hr_manager' AND org_id = 
+    (SELECT id FROM morbac.roles WHERE name = 'hr_manager' AND org_id =
         (SELECT id FROM morbac.orgs WHERE name = 'Acme Corp')),
     (SELECT id FROM morbac.orgs WHERE name = 'Acme Corp')
 );
@@ -365,7 +365,7 @@ SELECT morbac.admin_assign_role(
 SELECT morbac.admin_assign_role(
     'bob-uuid'::uuid,
     'charlie-uuid'::uuid,
-    (SELECT id FROM morbac.roles WHERE name = 'employee' AND org_id = 
+    (SELECT id FROM morbac.roles WHERE name = 'employee' AND org_id =
         (SELECT id FROM morbac.orgs WHERE name = 'Acme Corp')),
     (SELECT id FROM morbac.orgs WHERE name = 'Acme Corp')
 );

@@ -446,6 +446,147 @@ VALUES (org_id, sec_admin_role_id, true);
 SELECT morbac.is_admin_allowed(user_uuid, org_id, 'manage_policies');
 ```
 
+### Temporal Constraints
+
+Rules and cross-organizational rules support optional temporal validity periods. Rules are only active within their specified time window.
+
+**Adding temporal constraints to rules:**
+
+```sql
+-- Rule active only in 2024
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, valid_from, valid_until)
+VALUES (org_id, contractor_role_id, 'read', 'projects', ctx_id, 'permission',
+        '2024-01-01 00:00:00+00', '2024-12-31 23:59:59+00');
+
+-- Rule active starting from a specific date (no end date)
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, valid_from)
+VALUES (org_id, employee_role_id, 'read', 'handbook', ctx_id, 'permission',
+        '2024-06-01 00:00:00+00');
+
+-- Rule expires at a specific date
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, valid_until)
+VALUES (org_id, temp_role_id, 'write', 'reports', ctx_id, 'permission',
+        '2024-12-31 23:59:59+00');
+```
+
+**Temporal constraints on cross-org rules:**
+
+```sql
+INSERT INTO morbac.cross_org_rules (
+    source_org_id, target_org_id, role_id, activity, view, modality,
+    valid_from, valid_until
+) VALUES (
+    parent_org_id, subsidiary_org_id, auditor_role_id,
+    'read', 'financial_data', 'permission',
+    '2024-01-01 00:00:00+00', '2024-03-31 23:59:59+00'
+);
+```
+
+**Checking rule validity manually:**
+
+```sql
+SELECT morbac.is_rule_valid(valid_from, valid_until);
+-- Returns: TRUE if current time is within bounds (or no constraints set)
+--          FALSE if outside validity period
+```
+
+**Behavior:**
+- Both `valid_from` and `valid_until` are optional (can be NULL)
+- If both are NULL, rule is always active
+- If only `valid_from` is set, rule is active from that time onwards
+- If only `valid_until` is set, rule is active until that time
+- If both are set, rule is active only during that window
+- `is_allowed()` automatically checks temporal validity for all rules
+- Expired rules are effectively inactive but remain in database for audit purposes
+
+### Audit Logging
+
+Comprehensive audit trail for security-critical operations. The audit system tracks all INSERT, UPDATE, and DELETE operations on specified tables.
+
+**Audit log table structure:**
+
+```sql
+morbac.audit_log (
+    id              BIGSERIAL PRIMARY KEY,
+    timestamp       TIMESTAMPTZ,      -- When change occurred
+    user_id         UUID,             -- User making change (if applicable)
+    org_id          UUID,             -- Organization context
+    table_name      TEXT,             -- Table being modified
+    operation       TEXT,             -- INSERT, UPDATE, DELETE
+    record_id       UUID,             -- ID of affected record
+    old_data        JSONB,            -- Record state before change (UPDATE/DELETE)
+    new_data        JSONB,            -- Record state after change (INSERT/UPDATE)
+    changed_fields  TEXT[],           -- List of modified columns (UPDATE)
+    session_user    TEXT,             -- PostgreSQL session user
+    client_addr     INET,             -- Client IP address
+    application_name TEXT,            -- Application name from connection
+    metadata        JSONB             -- Additional custom metadata
+)
+```
+
+**Enabling audit logging:**
+
+```sql
+-- Enable auditing on user_roles table
+SELECT morbac.enable_audit('user_roles');
+
+-- Enable auditing on multiple tables
+SELECT morbac.enable_audit('rules');
+SELECT morbac.enable_audit('delegations');
+SELECT morbac.enable_audit('admin_rules');
+```
+
+**Disabling audit logging:**
+
+```sql
+SELECT morbac.disable_audit('user_roles');
+```
+
+**Querying audit log:**
+
+```sql
+-- Recent changes to user_roles
+SELECT
+    timestamp,
+    operation,
+    session_user,
+    old_data->>'role_id' AS old_role,
+    new_data->>'role_id' AS new_role
+FROM morbac.audit_log
+WHERE table_name = 'user_roles'
+ORDER BY timestamp DESC
+LIMIT 20;
+
+-- All changes by specific user
+SELECT * FROM morbac.audit_log
+WHERE user_id = '123e4567-e89b-12d3-a456-426614174000'
+ORDER BY timestamp DESC;
+
+-- Changes to specific record
+SELECT * FROM morbac.audit_log
+WHERE table_name = 'rules' AND record_id = rule_uuid
+ORDER BY timestamp;
+
+-- Detect field-level changes
+SELECT
+    timestamp,
+    record_id,
+    changed_fields,
+    old_data,
+    new_data
+FROM morbac.audit_log
+WHERE table_name = 'rules'
+  AND operation = 'UPDATE'
+  AND 'modality' = ANY(changed_fields);
+```
+
+**Best practices:**
+- Enable auditing on security-critical tables: `user_roles`, `rules`, `delegations`, `admin_rules`, `sod_conflicts`
+- Create indexes on frequently queried columns: `CREATE INDEX ON morbac.audit_log(table_name, timestamp DESC)`
+- Implement retention policies to archive old audit logs
+- Use JSONB operators to query `old_data` and `new_data` efficiently
+- Consider partitioning `audit_log` by timestamp for large installations
+
 ## API Reference
 
 ### Authorization Functions

@@ -369,15 +369,19 @@ CREATE TABLE morbac.rules (
     view TEXT NOT NULL REFERENCES morbac.views(name) ON DELETE CASCADE,
     context_id UUID NOT NULL REFERENCES morbac.contexts(id) ON DELETE CASCADE,
     modality morbac.modality NOT NULL,
+    valid_from TIMESTAMPTZ,
+    valid_until TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     metadata JSONB DEFAULT '{}'::jsonb,
-    UNIQUE(org_id, role_id, activity, view, context_id, modality)
+    UNIQUE(org_id, role_id, activity, view, context_id, modality),
+    CHECK (valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from)
 );
 
 CREATE INDEX idx_rules_org_role ON morbac.rules(org_id, role_id);
 CREATE INDEX idx_rules_activity_view ON morbac.rules(activity, view);
 CREATE INDEX idx_rules_modality ON morbac.rules(modality);
 CREATE INDEX idx_rules_lookup ON morbac.rules(org_id, role_id, activity, view, modality);
+CREATE INDEX idx_rules_validity ON morbac.rules(valid_from, valid_until);
 
 COMMENT ON TABLE morbac.rules IS 'Core OrBAC rules - Permission, Prohibition, Obligation, Recommendation';
 COMMENT ON COLUMN morbac.rules.org_id IS 'Organization scope';
@@ -386,6 +390,42 @@ COMMENT ON COLUMN morbac.rules.activity IS 'Activity (abstract action)';
 COMMENT ON COLUMN morbac.rules.view IS 'View (abstract object category)';
 COMMENT ON COLUMN morbac.rules.context_id IS 'Context condition';
 COMMENT ON COLUMN morbac.rules.modality IS 'Deontic modality: permission, prohibition, obligation, recommendation';
+COMMENT ON COLUMN morbac.rules.valid_from IS 'Optional: Rule valid from this timestamp';
+COMMENT ON COLUMN morbac.rules.valid_until IS 'Optional: Rule valid until this timestamp';
+
+-- Helper function to check if a rule is currently valid
+CREATE OR REPLACE FUNCTION morbac.is_rule_valid(
+    p_valid_from TIMESTAMPTZ,
+    p_valid_until TIMESTAMPTZ
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_now TIMESTAMPTZ := CURRENT_TIMESTAMP;
+BEGIN
+    -- If no temporal constraints, rule is valid
+    IF p_valid_from IS NULL AND p_valid_until IS NULL THEN
+        RETURN TRUE;
+    END IF;
+
+    -- Check valid_from
+    IF p_valid_from IS NOT NULL AND v_now < p_valid_from THEN
+        RETURN FALSE;
+    END IF;
+
+    -- Check valid_until
+    IF p_valid_until IS NOT NULL AND v_now >= p_valid_until THEN
+        RETURN FALSE;
+    END IF;
+
+    RETURN TRUE;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.is_rule_valid(TIMESTAMPTZ, TIMESTAMPTZ) IS
+'Check if a rule is currently valid based on temporal constraints';
 
 -- =============================================================================
 -- 10a. INTER-ORGANIZATIONAL RULES
@@ -403,17 +443,23 @@ CREATE TABLE morbac.cross_org_rules (
     context_id UUID NOT NULL REFERENCES morbac.contexts(id) ON DELETE CASCADE,
     modality morbac.modality NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    valid_from TIMESTAMPTZ,
+    valid_until TIMESTAMPTZ,
     metadata JSONB DEFAULT '{}'::jsonb,
     CHECK (source_org_id != target_org_id),
+    CHECK (valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from),
     UNIQUE(source_org_id, target_org_id, role_id, activity, view, context_id, modality)
 );
 
 CREATE INDEX idx_cross_org_rules_source ON morbac.cross_org_rules(source_org_id, role_id);
 CREATE INDEX idx_cross_org_rules_target ON morbac.cross_org_rules(target_org_id);
+CREATE INDEX idx_cross_org_rules_temporal ON morbac.cross_org_rules(valid_from, valid_until);
 
 COMMENT ON TABLE morbac.cross_org_rules IS 'Inter-organizational rules for cross-org access';
 COMMENT ON COLUMN morbac.cross_org_rules.source_org_id IS 'Organization where user has role';
 COMMENT ON COLUMN morbac.cross_org_rules.target_org_id IS 'Organization where resource resides';
+COMMENT ON COLUMN morbac.cross_org_rules.valid_from IS 'Optional start time for rule validity';
+COMMENT ON COLUMN morbac.cross_org_rules.valid_until IS 'Optional end time for rule validity';
 
 -- =============================================================================
 -- 10b. ADMINISTRATION RULES
@@ -438,6 +484,179 @@ CREATE INDEX idx_admin_rules_org_role ON morbac.admin_rules(org_id, role_id);
 COMMENT ON TABLE morbac.admin_rules IS 'Administration rules - meta-policies for policy management';
 COMMENT ON COLUMN morbac.admin_rules.admin_activity IS 'Admin action: create_rule, modify_rule, delete_rule, assign_role, etc.';
 COMMENT ON COLUMN morbac.admin_rules.admin_target IS 'What can be administered: rules, roles, users, orgs, etc.';
+
+-- =============================================================================
+-- 10c. AUDIT LOG
+-- =============================================================================
+-- Optional audit logging for tracking changes to security-critical tables
+-- Enable/disable per table with triggers
+
+CREATE TABLE morbac.audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    user_id UUID,
+    org_id UUID,
+    table_name TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    record_id UUID,
+    old_data JSONB,
+    new_data JSONB,
+    changed_fields TEXT[],
+    session_user TEXT DEFAULT SESSION_USER,
+    client_addr INET DEFAULT INET_CLIENT_ADDR(),
+    application_name TEXT DEFAULT CURRENT_SETTING('application_name', true),
+    metadata JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX idx_audit_log_timestamp ON morbac.audit_log(timestamp DESC);
+CREATE INDEX idx_audit_log_user_id ON morbac.audit_log(user_id);
+CREATE INDEX idx_audit_log_org_id ON morbac.audit_log(org_id);
+CREATE INDEX idx_audit_log_table_operation ON morbac.audit_log(table_name, operation);
+CREATE INDEX idx_audit_log_record_id ON morbac.audit_log(record_id);
+
+COMMENT ON TABLE morbac.audit_log IS 'Audit trail for security-critical operations';
+COMMENT ON COLUMN morbac.audit_log.user_id IS 'Application user (from morbac.current_user_id() if available)';
+COMMENT ON COLUMN morbac.audit_log.org_id IS 'Organization context (from morbac.current_org_id() if available)';
+COMMENT ON COLUMN morbac.audit_log.operation IS 'INSERT, UPDATE, DELETE, or custom operation name';
+COMMENT ON COLUMN morbac.audit_log.changed_fields IS 'Array of field names that changed (for UPDATE operations)';
+COMMENT ON COLUMN morbac.audit_log.session_user IS 'Database session user';
+COMMENT ON COLUMN morbac.audit_log.client_addr IS 'Client IP address';
+
+-- Generic audit trigger function
+CREATE OR REPLACE FUNCTION morbac.audit_trigger()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_old_data JSONB;
+    v_new_data JSONB;
+    v_changed_fields TEXT[];
+    v_user_id UUID;
+    v_org_id UUID;
+    v_record_id UUID;
+BEGIN
+    -- Try to get current user/org context
+    BEGIN
+        v_user_id := morbac.current_user_id();
+    EXCEPTION WHEN OTHERS THEN
+        v_user_id := NULL;
+    END;
+
+    BEGIN
+        v_org_id := morbac.current_org_id();
+    EXCEPTION WHEN OTHERS THEN
+        v_org_id := NULL;
+    END;
+
+    -- Handle different operations
+    IF TG_OP = 'DELETE' THEN
+        v_old_data := row_to_json(OLD)::jsonb;
+        v_new_data := NULL;
+        v_record_id := (v_old_data->>'id')::uuid;
+    ELSIF TG_OP = 'INSERT' THEN
+        v_old_data := NULL;
+        v_new_data := row_to_json(NEW)::jsonb;
+        v_record_id := (v_new_data->>'id')::uuid;
+    ELSIF TG_OP = 'UPDATE' THEN
+        v_old_data := row_to_json(OLD)::jsonb;
+        v_new_data := row_to_json(NEW)::jsonb;
+        v_record_id := (v_new_data->>'id')::uuid;
+
+        -- Identify changed fields
+        SELECT array_agg(key)
+        INTO v_changed_fields
+        FROM jsonb_each(v_old_data)
+        WHERE v_old_data->key IS DISTINCT FROM v_new_data->key;
+    END IF;
+
+    -- Override org_id from record if available
+    IF v_org_id IS NULL THEN
+        IF v_new_data ? 'org_id' THEN
+            v_org_id := (v_new_data->>'org_id')::uuid;
+        ELSIF v_old_data ? 'org_id' THEN
+            v_org_id := (v_old_data->>'org_id')::uuid;
+        END IF;
+    END IF;
+
+    -- Insert audit record
+    INSERT INTO morbac.audit_log (
+        user_id,
+        org_id,
+        table_name,
+        operation,
+        record_id,
+        old_data,
+        new_data,
+        changed_fields
+    ) VALUES (
+        v_user_id,
+        v_org_id,
+        TG_TABLE_NAME,
+        TG_OP,
+        v_record_id,
+        v_old_data,
+        v_new_data,
+        v_changed_fields
+    );
+
+    -- Return appropriate value
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
+        RETURN NEW;
+    END IF;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.audit_trigger() IS
+'Generic audit trigger function - captures INSERT/UPDATE/DELETE operations';
+
+-- Helper function to enable audit logging on a table
+CREATE OR REPLACE FUNCTION morbac.enable_audit(p_table_name TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_trigger_name TEXT;
+BEGIN
+    v_trigger_name := 'audit_' || p_table_name;
+
+    EXECUTE format(
+        'CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE ON morbac.%I ' ||
+        'FOR EACH ROW EXECUTE FUNCTION morbac.audit_trigger()',
+        v_trigger_name,
+        p_table_name
+    );
+
+    RAISE NOTICE 'Audit logging enabled for morbac.%', p_table_name;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.enable_audit(TEXT) IS
+'Enable audit logging on a morbac table - creates audit trigger';
+
+-- Helper function to disable audit logging on a table
+CREATE OR REPLACE FUNCTION morbac.disable_audit(p_table_name TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_trigger_name TEXT;
+BEGIN
+    v_trigger_name := 'audit_' || p_table_name;
+
+    EXECUTE format(
+        'DROP TRIGGER IF EXISTS %I ON morbac.%I',
+        v_trigger_name,
+        p_table_name
+    );
+
+    RAISE NOTICE 'Audit logging disabled for morbac.%', p_table_name;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.disable_audit(TEXT) IS
+'Disable audit logging on a morbac table - removes audit trigger';
 
 -- =============================================================================
 -- 11. HIERARCHY FUNCTIONS
@@ -882,6 +1101,7 @@ BEGIN
     -- - Activity hierarchy (senior activities imply junior)
     -- - View hierarchy (senior views imply junior)
     -- - Comprehensive roles (direct, delegated, derived, inherited)
+    -- - Temporal validity (if rule has time constraints)
 
     FOR v_rule IN
         SELECT r.context_id
@@ -900,6 +1120,8 @@ BEGIN
           AND r.role_id IN (
               SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, p_org_id)
           )
+          -- Check temporal validity
+          AND morbac.is_rule_valid(r.valid_from, r.valid_until)
     LOOP
         -- Evaluate context
         IF morbac.eval_context(v_rule.context_id) THEN
@@ -920,6 +1142,8 @@ BEGIN
           AND cr.role_id IN (
               SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, cr.source_org_id)
           )
+          -- Check temporal validity
+          AND morbac.is_rule_valid(cr.valid_from, cr.valid_until)
     LOOP
         IF morbac.eval_context(v_rule.context_id) THEN
             RETURN FALSE;
@@ -944,6 +1168,8 @@ BEGIN
           AND r.role_id IN (
               SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, p_org_id)
           )
+          -- Check temporal validity
+          AND morbac.is_rule_valid(r.valid_from, r.valid_until)
     LOOP
         -- Evaluate context
         IF morbac.eval_context(v_rule.context_id) THEN
@@ -963,6 +1189,8 @@ BEGIN
           AND cr.role_id IN (
               SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, cr.source_org_id)
           )
+          -- Check temporal validity
+          AND morbac.is_rule_valid(cr.valid_from, cr.valid_until)
     LOOP
         IF morbac.eval_context(v_rule.context_id) THEN
             RETURN TRUE;

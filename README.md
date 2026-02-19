@@ -14,10 +14,12 @@ A PostgreSQL extension implementing the Multi-OrBAC access control model - enabl
 - Activity and view hierarchies with transitive permission inheritance
 - Prohibition precedence over permissions
 - Temporal delegation with time bounds
+- Temporal constraints on rules with validity periods
 - Separation of duty constraints
 - Derived roles computed from application logic
 - Cross-organizational policies
 - Context-aware rules
+- Audit logging for security-critical operations
 - Row-level security integration
 
 ### Prerequisites
@@ -109,6 +111,11 @@ CREATE POLICY doc_access ON app.documents
 ### Advanced Features
 
 ```sql
+-- Temporal rules: Rule active only during business hours or specific period
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, valid_from, valid_until)
+VALUES (org_id, role_id, 'write', 'sensitive_data', ctx_id, 'permission',
+        '2024-01-01 00:00:00', '2024-12-31 23:59:59');
+
 -- Delegation: Alice delegates role to Bob for 1 week
 INSERT INTO morbac.delegations (delegator_user_id, delegate_user_id, role_id, org_id, valid_until)
 VALUES (alice_id, bob_id, role_id, org_id, NOW() + INTERVAL '7 days');
@@ -120,6 +127,15 @@ VALUES (preparer_role_id, approver_role_id, org_id);
 -- Cross-Org: Global auditor can access subsidiary
 INSERT INTO morbac.cross_org_rules (source_org_id, target_org_id, role_id, activity, view, modality)
 VALUES (global_org_id, subsidiary_org_id, auditor_role_id, 'read', 'reports', 'permission');
+
+-- Audit logging: Track changes to user roles
+SELECT morbac.enable_audit('user_roles');
+
+-- Query audit log
+SELECT * FROM morbac.audit_log
+WHERE table_name = 'user_roles'
+ORDER BY timestamp DESC
+LIMIT 10;
 ```
 
 ## Testing

@@ -98,8 +98,24 @@ AS $$ ... $$;
 
 ### 4. Audit Critical Operations
 ```sql
--- Log policy changes and authorization decisions
--- (morbac_pg does not include audit logging by default)
+-- Enable audit logging on security-critical tables
+SELECT morbac.enable_audit('user_roles');
+SELECT morbac.enable_audit('rules');
+SELECT morbac.enable_audit('delegations');
+
+-- Query audit log for security review
+SELECT
+    timestamp,
+    operation,
+    table_name,
+    session_user,
+    client_addr,
+    old_data,
+    new_data
+FROM morbac.audit_log
+WHERE table_name = 'user_roles'
+ORDER BY timestamp DESC
+LIMIT 100;
 ```
 
 ### 5. Regular Updates

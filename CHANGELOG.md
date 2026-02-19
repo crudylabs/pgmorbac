@@ -21,12 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Advanced features:
   - Organization, role, activity, and view hierarchies with transitive closure
   - Temporal delegation with time bounds
+  - Temporal constraints on rules with validity periods (valid_from, valid_until)
   - Negative role assignments
   - Separation of Duty (SoD) constraints
   - Role cardinality constraints (min/max users)
   - Derived roles (computed via functions)
-  - Cross-organizational rules
+  - Cross-organizational rules with temporal support
   - Administration rules (meta-policies)
+  - Audit logging for security-critical operations
+- Audit logging system:
+  - Generic audit trigger for tracking INSERT/UPDATE/DELETE operations
+  - Comprehensive audit log with JSONB support for before/after states
+  - Helper functions: `enable_audit()`, `disable_audit()`
+  - Field-level change tracking
+  - Client connection metadata capture (IP, application name, session user)
 - Policy DSL with idempotent compiler
 - RLS helper functions for PostgREST integration
 - Comprehensive test suite with 20 test scenarios
