@@ -46,7 +46,7 @@ psql -d mydb -c "CREATE EXTENSION morbac_pg;"
 ```bash
 # Copy files to PostgreSQL extension directory
 sudo cp morbac_pg.control $(pg_config --sharedir)/extension/
-sudo cp morbac_pg--1.0.sql $(pg_config --sharedir)/extension/
+sudo cp morbac_pg--1.0.0.sql $(pg_config --sharedir)/extension/
 
 # Enable in PostgreSQL
 psql -d mydb -c "CREATE EXTENSION morbac_pg;"

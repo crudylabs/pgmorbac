@@ -2,7 +2,7 @@
 # Multi-OrBAC: Organization-Based Access Control
 
 EXTENSION = morbac_pg
-EXTVERSION = 1.0
+EXTVERSION = 1.0.0
 
 DATA = $(EXTENSION)--$(EXTVERSION).sql
 DOCS = README.md

@@ -42,7 +42,7 @@ fi
 # Copy extension files
 echo "Installing extension files..."
 cp -v morbac_pg.control "$EXTDIR/"
-cp -v morbac_pg--1.0.sql "$EXTDIR/"
+cp -v morbac_pg--1.0.0.sql "$EXTDIR/"
 
 echo ""
 echo "=================================="
