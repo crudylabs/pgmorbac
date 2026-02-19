@@ -1,0 +1,125 @@
+# Security Policy
+
+## Supported Versions
+
+| Version | Supported          |
+| ------- | ------------------ |
+| 1.0.x   | :white_check_mark: |
+
+## Security Model
+
+morbac_pg implements the Multi-OrBAC access control model with the following security principles:
+
+### Default Deny
+- No permission = access denied
+- Explicit permissions must be granted
+
+### Prohibition Precedence
+- Prohibitions are checked first
+- Prohibitions always override permissions
+- Early return for performance and security
+
+### Organization Isolation
+- All policies are scoped to organizations
+- Cross-organization access requires explicit `cross_org_rules`
+- Users cannot access resources outside their authorized organizations
+
+### Context Evaluation
+- All rules can have contextual conditions
+- Contexts are evaluated at authorization time
+- Failed context evaluation = rule does not apply
+
+### SQL Injection Protection
+- All functions use parameterized queries
+- No dynamic SQL construction from user input
+- Type-safe PostgreSQL functions
+
+## Reporting a Vulnerability
+
+If you discover a security vulnerability in morbac_pg, please report it responsibly:
+
+### DO NOT
+- Open a public GitHub issue for security vulnerabilities
+- Disclose the vulnerability publicly before it's fixed
+
+### DO
+1. **Email the maintainer** with details:
+   - Description of the vulnerability
+   - Steps to reproduce
+   - Potential impact
+   - Suggested fix (if any)
+
+2. **Wait for acknowledgment** (within 48 hours)
+
+3. **Coordinate disclosure** after a fix is available
+
+### What to Expect
+
+- **Acknowledgment**: Within 48 hours
+- **Initial assessment**: Within 1 week
+- **Fix timeline**: Depends on severity
+  - Critical: 1-7 days
+  - High: 1-2 weeks
+  - Medium: 2-4 weeks
+  - Low: Next release
+- **Disclosure**: Coordinated after fix is released
+- **Credit**: You will be credited (unless you prefer anonymity)
+
+## Security Best Practices
+
+When using morbac_pg:
+
+### 1. Protect Authorization Headers
+```sql
+-- In PostgREST, ensure X-User-Id and X-Org-Id come from authenticated sessions
+-- Never trust client-provided values directly
+```
+
+### 2. Use RLS Policies
+```sql
+-- Always enable RLS on application tables
+ALTER TABLE app.documents ENABLE ROW LEVEL SECURITY;
+
+-- Use morbac_pg for authorization
+CREATE POLICY doc_access ON app.documents
+FOR ALL USING (morbac.rls_check('read', 'documents'));
+```
+
+### 3. Validate Context Functions
+```sql
+-- Context functions should be STABLE or IMMUTABLE
+-- Avoid VOLATILE contexts that could leak information
+CREATE OR REPLACE FUNCTION morbac.my_context()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE  -- Important!
+AS $$ ... $$;
+```
+
+### 4. Audit Critical Operations
+```sql
+-- Log policy changes and authorization decisions
+-- (morbac_pg does not include audit logging by default)
+```
+
+### 5. Regular Updates
+- Keep PostgreSQL updated
+- Monitor for morbac_pg security advisories
+- Review and test policies regularly
+
+### 6. Principle of Least Privilege
+- Grant only necessary permissions
+- Use prohibitions to explicitly deny sensitive operations
+- Implement Separation of Duty for critical roles
+
+## Known Limitations
+
+1. **Context Function Security**: Context functions run with database privileges. Ensure they are written securely and don't expose sensitive information.
+
+2. **Delegation Trust**: Delegations are trusted. Ensure delegator has authority to delegate their role.
+
+3. **Performance**: Complex authorization queries on large datasets may impact performance. Use indexes and consider caching.
+
+## Acknowledgments
+
+We appreciate responsible disclosure and will acknowledge security researchers who help improve morbac_pg security.
