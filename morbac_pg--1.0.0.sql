@@ -23,7 +23,67 @@ CREATE SCHEMA IF NOT EXISTS morbac;
 COMMENT ON SCHEMA morbac IS 'Multi-OrBAC access control framework - all objects live in this schema';
 
 -- =============================================================================
--- 1. DEONTIC MODALITY TYPE
+-- CONFIGURATION
+-- =============================================================================
+-- Centralized configuration for morbac_pg extension
+-- Edit these values to customize behavior
+
+CREATE TABLE morbac.config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE morbac.config IS 'Extension configuration - edit values to customize behavior';
+
+-- Insert default configuration values
+INSERT INTO morbac.config (key, value, description) VALUES
+    ('cache_ttl_seconds', '300', 'Authorization cache time-to-live in seconds (default: 5 minutes)'),
+    ('hierarchy_max_depth', '10', 'Maximum depth for hierarchy traversal to prevent infinite loops'),
+    ('enable_audit_by_default', 'false', 'Whether to enable audit logging by default on installation');
+
+-- Helper function to get configuration values
+CREATE OR REPLACE FUNCTION morbac.get_config(p_key TEXT)
+RETURNS TEXT
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_value TEXT;
+BEGIN
+    SELECT value INTO v_value FROM morbac.config WHERE key = p_key;
+    RETURN v_value;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN NULL;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.get_config(TEXT) IS
+'Get configuration value by key';
+
+-- Helper function to set configuration values
+CREATE OR REPLACE FUNCTION morbac.set_config(p_key TEXT, p_value TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE morbac.config
+    SET value = p_value, updated_at = CURRENT_TIMESTAMP
+    WHERE key = p_key;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Configuration key % does not exist', p_key;
+    END IF;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.set_config(TEXT, TEXT) IS
+'Set configuration value by key';
+
+-- =============================================================================
+-- DEONTIC MODALITY TYPE
 -- =============================================================================
 -- Represents the four deontic modalities of OrBAC model
 
@@ -37,7 +97,7 @@ CREATE TYPE morbac.modality AS ENUM (
 COMMENT ON TYPE morbac.modality IS 'Deontic modalities: permission, prohibition, obligation, recommendation';
 
 -- =============================================================================
--- 2. ORGANIZATIONS
+-- ORGANIZATIONS
 -- =============================================================================
 -- Organizations are first-class entities in Multi-OrBAC
 -- Each organization has its own policy space
@@ -60,7 +120,7 @@ COMMENT ON COLUMN morbac.orgs.parent_id IS 'Parent organization for hierarchical
 COMMENT ON COLUMN morbac.orgs.metadata IS 'Optional metadata for organization';
 
 -- =============================================================================
--- 3. ROLES
+-- ROLES
 -- =============================================================================
 -- Roles are scoped to organizations
 -- A role abstracts a set of subjects within an organization
@@ -82,7 +142,7 @@ COMMENT ON COLUMN morbac.roles.org_id IS 'Organization this role belongs to';
 COMMENT ON COLUMN morbac.roles.name IS 'Role name (unique within organization)';
 
 -- =============================================================================
--- 4. ROLE HIERARCHY
+-- ROLE HIERARCHY
 -- =============================================================================
 -- Roles can inherit from other roles (role hierarchy)
 -- Senior roles inherit permissions from junior roles
@@ -103,7 +163,7 @@ COMMENT ON COLUMN morbac.role_hierarchy.senior_role_id IS 'Senior role (inherits
 COMMENT ON COLUMN morbac.role_hierarchy.junior_role_id IS 'Junior role (provides permissions)';
 
 -- =============================================================================
--- 5. USER-ROLE ASSIGNMENTS
+-- USER-ROLE ASSIGNMENTS
 -- =============================================================================
 -- Maps users to roles within organizations
 -- user_id is external (e.g., from authentication system)
@@ -118,6 +178,8 @@ CREATE TABLE morbac.user_roles (
 
 CREATE INDEX idx_user_roles_user_org ON morbac.user_roles(user_id, org_id);
 CREATE INDEX idx_user_roles_role ON morbac.user_roles(role_id);
+-- Performance: Fast role lookup with included role_id
+CREATE INDEX idx_user_roles_fast ON morbac.user_roles(user_id, org_id) INCLUDE (role_id);
 
 COMMENT ON TABLE morbac.user_roles IS 'Maps users to roles within organizations';
 COMMENT ON COLUMN morbac.user_roles.user_id IS 'External user identifier';
@@ -125,7 +187,7 @@ COMMENT ON COLUMN morbac.user_roles.role_id IS 'Role assigned to the user';
 COMMENT ON COLUMN morbac.user_roles.org_id IS 'Organization context for this assignment';
 
 -- =============================================================================
--- 5a. DELEGATION
+-- DELEGATION
 -- =============================================================================
 -- Users can delegate their permissions to other users temporarily
 -- Delegation is time-bounded and role-scoped
@@ -156,7 +218,7 @@ COMMENT ON COLUMN morbac.delegations.valid_until IS 'Delegation end time';
 COMMENT ON COLUMN morbac.delegations.revoked IS 'Whether delegation has been revoked';
 
 -- =============================================================================
--- 5b. NEGATIVE ROLE ASSIGNMENTS
+-- NEGATIVE ROLE ASSIGNMENTS
 -- =============================================================================
 -- Explicitly prevent users from ever getting certain roles
 -- Takes precedence over positive assignments
@@ -178,7 +240,7 @@ COMMENT ON COLUMN morbac.negative_role_assignments.role_id IS 'Role that is proh
 COMMENT ON COLUMN morbac.negative_role_assignments.reason IS 'Reason for prohibition';
 
 -- =============================================================================
--- 5c. SEPARATION OF DUTY (SoD)
+-- SEPARATION OF DUTY (SoD)
 -- =============================================================================
 -- Define mutually exclusive roles that cannot be held simultaneously
 
@@ -202,7 +264,7 @@ COMMENT ON COLUMN morbac.sod_conflicts.role_b_id IS 'Second conflicting role';
 COMMENT ON COLUMN morbac.sod_conflicts.description IS 'Description of the conflict';
 
 -- =============================================================================
--- 5d. CARDINALITY CONSTRAINTS
+-- CARDINALITY CONSTRAINTS
 -- =============================================================================
 -- Limit the number of users that can have a specific role
 
@@ -221,7 +283,7 @@ COMMENT ON COLUMN morbac.role_cardinality.min_users IS 'Minimum number of users 
 COMMENT ON COLUMN morbac.role_cardinality.max_users IS 'Maximum number of users allowed for this role';
 
 -- =============================================================================
--- 5e. DERIVED ROLES
+-- DERIVED ROLES
 -- =============================================================================
 -- Roles computed dynamically based on conditions rather than explicit assignment
 
@@ -237,7 +299,7 @@ COMMENT ON COLUMN morbac.derived_roles.role_id IS 'Role that is derived';
 COMMENT ON COLUMN morbac.derived_roles.condition_evaluator IS 'Function(user_id, org_id) returning boolean';
 
 -- =============================================================================
--- 6. ACTIVITIES
+-- ACTIVITIES
 -- =============================================================================
 -- Activities represent abstract actions in OrBAC
 -- These are global abstractions (not org-scoped)
@@ -252,7 +314,7 @@ COMMENT ON TABLE morbac.activities IS 'Activities - abstract actions in OrBAC mo
 COMMENT ON COLUMN morbac.activities.name IS 'Activity name (unique, global)';
 
 -- =============================================================================
--- 6a. ACTIVITY HIERARCHY
+-- ACTIVITY HIERARCHY
 -- =============================================================================
 -- Activities can inherit from other activities
 -- e.g., "write" implies "read", "admin_delete" implies "delete"
@@ -273,7 +335,7 @@ COMMENT ON COLUMN morbac.activity_hierarchy.senior_activity IS 'Senior activity 
 COMMENT ON COLUMN morbac.activity_hierarchy.junior_activity IS 'Junior activity (implied by senior)';
 
 -- =============================================================================
--- 7. VIEWS
+-- VIEWS
 -- =============================================================================
 -- Views represent abstract object categories in OrBAC
 -- These are global abstractions (not org-scoped)
@@ -288,7 +350,7 @@ COMMENT ON TABLE morbac.views IS 'Views - abstract object categories in OrBAC mo
 COMMENT ON COLUMN morbac.views.name IS 'View name (unique, global)';
 
 -- =============================================================================
--- 7a. VIEW HIERARCHY
+-- VIEW HIERARCHY
 -- =============================================================================
 -- Views can inherit from other views
 -- e.g., "confidential_documents" is a "documents", "admin_reports" is a "reports"
@@ -309,7 +371,7 @@ COMMENT ON COLUMN morbac.view_hierarchy.senior_view IS 'Senior view (more specif
 COMMENT ON COLUMN morbac.view_hierarchy.junior_view IS 'Junior view (more general)';
 
 -- =============================================================================
--- 8. CONTEXTS
+-- CONTEXTS
 -- =============================================================================
 -- Contexts represent conditions under which rules apply
 -- Implemented as callable predicates (functions)
@@ -329,7 +391,7 @@ COMMENT ON COLUMN morbac.contexts.name IS 'Context name (unique)';
 COMMENT ON COLUMN morbac.contexts.evaluator IS 'Function that evaluates this context (returns boolean)';
 
 -- =============================================================================
--- 9. DEFAULT CONTEXT: ALWAYS
+-- DEFAULT CONTEXT: ALWAYS
 -- =============================================================================
 -- Create a default context that always evaluates to true
 
@@ -354,7 +416,7 @@ VALUES (
 );
 
 -- =============================================================================
--- 10. RULES (Core OrBAC Policy)
+-- RULES (Core OrBAC Policy)
 -- =============================================================================
 -- Implements the OrBAC rule relation:
 -- Rule(org, role, activity, view, context, modality)
@@ -382,6 +444,11 @@ CREATE INDEX idx_rules_activity_view ON morbac.rules(activity, view);
 CREATE INDEX idx_rules_modality ON morbac.rules(modality);
 CREATE INDEX idx_rules_lookup ON morbac.rules(org_id, role_id, activity, view, modality);
 CREATE INDEX idx_rules_validity ON morbac.rules(valid_from, valid_until);
+-- Performance: Fast lookup for active rules during authorization
+CREATE INDEX idx_rules_fast_lookup ON morbac.rules(org_id, modality, activity, view)
+INCLUDE (role_id, context_id)
+WHERE (valid_from IS NULL OR valid_from <= CURRENT_TIMESTAMP)
+  AND (valid_until IS NULL OR valid_until > CURRENT_TIMESTAMP);
 
 COMMENT ON TABLE morbac.rules IS 'Core OrBAC rules - Permission, Prohibition, Obligation, Recommendation';
 COMMENT ON COLUMN morbac.rules.org_id IS 'Organization scope';
@@ -428,7 +495,7 @@ COMMENT ON FUNCTION morbac.is_rule_valid(TIMESTAMPTZ, TIMESTAMPTZ) IS
 'Check if a rule is currently valid based on temporal constraints';
 
 -- =============================================================================
--- 10a. INTER-ORGANIZATIONAL RULES
+-- INTER-ORGANIZATIONAL RULES
 -- =============================================================================
 -- Rules that apply across organizations (cross-org access)
 -- Allows users from one org to access resources in another org
@@ -462,7 +529,7 @@ COMMENT ON COLUMN morbac.cross_org_rules.valid_from IS 'Optional start time for 
 COMMENT ON COLUMN morbac.cross_org_rules.valid_until IS 'Optional end time for rule validity';
 
 -- =============================================================================
--- 10b. ADMINISTRATION RULES
+-- ADMINISTRATION RULES
 -- =============================================================================
 -- Meta-policies defining who can create/modify policies (AdministrationPermission)
 
@@ -486,7 +553,7 @@ COMMENT ON COLUMN morbac.admin_rules.admin_activity IS 'Admin action: create_rul
 COMMENT ON COLUMN morbac.admin_rules.admin_target IS 'What can be administered: rules, roles, users, orgs, etc.';
 
 -- =============================================================================
--- 10c. AUDIT LOG
+-- AUDIT LOG
 -- =============================================================================
 -- Optional audit logging for tracking changes to security-critical tables
 -- Enable/disable per table with triggers
@@ -659,7 +726,7 @@ COMMENT ON FUNCTION morbac.disable_audit(TEXT) IS
 'Disable audit logging on a morbac table - removes audit trigger';
 
 -- =============================================================================
--- 11. HIERARCHY FUNCTIONS
+-- HIERARCHY FUNCTIONS
 -- =============================================================================
 -- Functions to compute transitive closures for organization and role hierarchies
 
@@ -953,7 +1020,121 @@ COMMENT ON FUNCTION morbac.get_inherited_roles(UUID) IS
 'Returns all roles inherited by a role (transitive closure via role hierarchy)';
 
 -- =============================================================================
--- 11a. VALIDATION FUNCTIONS
+-- PERFORMANCE: MATERIALIZED HIERARCHY VIEWS
+-- =============================================================================
+-- Precomputed transitive closures for hierarchies to avoid recursive CTEs on every request
+
+-- Precomputed role hierarchy transitive closure
+CREATE MATERIALIZED VIEW morbac.mv_role_closure AS
+WITH RECURSIVE role_closure AS (
+    SELECT id as senior_role_id, id as junior_role_id, 0 as depth
+    FROM morbac.roles
+    UNION
+    SELECT rh.senior_role_id, rh.junior_role_id, 1 as depth
+    FROM morbac.role_hierarchy rh
+    UNION
+    SELECT rc.senior_role_id, rh.junior_role_id, rc.depth + 1
+    FROM role_closure rc
+    INNER JOIN morbac.role_hierarchy rh ON rh.senior_role_id = rc.junior_role_id
+    WHERE rc.depth < (SELECT value::integer FROM morbac.config WHERE key = 'hierarchy_max_depth')
+)
+SELECT DISTINCT senior_role_id, junior_role_id, MIN(depth) as depth
+FROM role_closure
+GROUP BY senior_role_id, junior_role_id;
+
+CREATE UNIQUE INDEX idx_mv_role_closure ON morbac.mv_role_closure(senior_role_id, junior_role_id);
+CREATE INDEX idx_mv_role_closure_junior ON morbac.mv_role_closure(junior_role_id);
+
+COMMENT ON MATERIALIZED VIEW morbac.mv_role_closure IS
+'Precomputed role hierarchy transitive closure - refresh after role hierarchy changes';
+
+-- Precomputed org hierarchy transitive closure
+CREATE MATERIALIZED VIEW morbac.mv_org_closure AS
+WITH RECURSIVE org_closure AS (
+    SELECT id as descendant_id, id as ancestor_id, 0 as depth
+    FROM morbac.orgs
+    UNION
+    SELECT o.id, oc.ancestor_id, oc.depth + 1
+    FROM morbac.orgs o
+    INNER JOIN org_closure oc ON o.parent_id = oc.descendant_id
+    WHERE oc.depth < (SELECT value::integer FROM morbac.config WHERE key = 'hierarchy_max_depth')
+)
+SELECT DISTINCT descendant_id, ancestor_id, MIN(depth) as depth
+FROM org_closure
+GROUP BY descendant_id, ancestor_id;
+
+CREATE UNIQUE INDEX idx_mv_org_closure ON morbac.mv_org_closure(descendant_id, ancestor_id);
+CREATE INDEX idx_mv_org_closure_ancestor ON morbac.mv_org_closure(ancestor_id);
+
+COMMENT ON MATERIALIZED VIEW morbac.mv_org_closure IS
+'Precomputed organization hierarchy transitive closure - refresh after org hierarchy changes';
+
+-- Precomputed activity hierarchy
+CREATE MATERIALIZED VIEW morbac.mv_activity_closure AS
+WITH RECURSIVE activity_closure AS (
+    SELECT name as senior_activity, name as junior_activity, 0 as depth
+    FROM morbac.activities
+    UNION
+    SELECT ah.senior_activity, ah.junior_activity, 1 as depth
+    FROM morbac.activity_hierarchy ah
+    UNION
+    SELECT ac.senior_activity, ah.junior_activity, ac.depth + 1
+    FROM activity_closure ac
+    INNER JOIN morbac.activity_hierarchy ah ON ah.senior_activity = ac.junior_activity
+    WHERE ac.depth < (SELECT value::integer FROM morbac.config WHERE key = 'hierarchy_max_depth')
+)
+SELECT DISTINCT senior_activity, junior_activity, MIN(depth) as depth
+FROM activity_closure
+GROUP BY senior_activity, junior_activity;
+
+CREATE UNIQUE INDEX idx_mv_activity_closure ON morbac.mv_activity_closure(senior_activity, junior_activity);
+CREATE INDEX idx_mv_activity_closure_junior ON morbac.mv_activity_closure(junior_activity);
+
+COMMENT ON MATERIALIZED VIEW morbac.mv_activity_closure IS
+'Precomputed activity hierarchy transitive closure - refresh after activity hierarchy changes';
+
+-- Precomputed view hierarchy
+CREATE MATERIALIZED VIEW morbac.mv_view_closure AS
+WITH RECURSIVE view_closure AS (
+    SELECT name as senior_view, name as junior_view, 0 as depth
+    FROM morbac.views
+    UNION
+    SELECT vh.senior_view, vh.junior_view, 1 as depth
+    FROM morbac.view_hierarchy vh
+    UNION
+    SELECT vc.senior_view, vh.junior_view, vc.depth + 1
+    FROM view_closure vc
+    INNER JOIN morbac.view_hierarchy vh ON vh.senior_view = vc.junior_view
+    WHERE vc.depth < (SELECT value::integer FROM morbac.config WHERE key = 'hierarchy_max_depth')
+)
+SELECT DISTINCT senior_view, junior_view, MIN(depth) as depth
+FROM view_closure
+GROUP BY senior_view, junior_view;
+
+CREATE UNIQUE INDEX idx_mv_view_closure ON morbac.mv_view_closure(senior_view, junior_view);
+CREATE INDEX idx_mv_view_closure_junior ON morbac.mv_view_closure(junior_view);
+
+COMMENT ON MATERIALIZED VIEW morbac.mv_view_closure IS
+'Precomputed view hierarchy transitive closure - refresh after view hierarchy changes';
+
+-- Helper function to refresh all materialized views
+CREATE OR REPLACE FUNCTION morbac.refresh_hierarchy_cache()
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    REFRESH MATERIALIZED VIEW CONCURRENTLY morbac.mv_role_closure;
+    REFRESH MATERIALIZED VIEW CONCURRENTLY morbac.mv_org_closure;
+    REFRESH MATERIALIZED VIEW CONCURRENTLY morbac.mv_activity_closure;
+    REFRESH MATERIALIZED VIEW CONCURRENTLY morbac.mv_view_closure;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.refresh_hierarchy_cache() IS
+'Refresh all materialized hierarchy views - call after modifying hierarchies';
+
+-- =============================================================================
+-- VALIDATION FUNCTIONS
 -- =============================================================================
 
 -- Check if role assignment would violate Separation of Duty
@@ -1036,7 +1217,7 @@ COMMENT ON FUNCTION morbac.check_cardinality_violation(UUID, BOOLEAN) IS
 'Returns error message if cardinality constraint would be violated, NULL otherwise';
 
 -- =============================================================================
--- 12. CONTEXT EVALUATION HELPER
+-- CONTEXT EVALUATION HELPER
 -- =============================================================================
 -- Evaluates a context by calling its evaluator function
 
@@ -1068,7 +1249,123 @@ $$;
 COMMENT ON FUNCTION morbac.eval_context(UUID) IS 'Evaluates a context by calling its evaluator function';
 
 -- =============================================================================
--- 12. CONTEXT EVALUATION DECISION FUNCTION (CRITICAL)
+-- PERFORMANCE: AUTHORIZATION CACHE
+-- =============================================================================
+-- Cache authorization decisions to avoid repeated expensive computations
+-- Cache TTL is configurable via morbac.config table (key: cache_ttl_seconds)
+
+CREATE TABLE morbac.auth_cache (
+    user_id UUID NOT NULL,
+    org_id UUID NOT NULL,
+    activity TEXT NOT NULL,
+    view TEXT NOT NULL,
+    allowed BOOLEAN NOT NULL,
+    computed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '5 minutes'),
+    PRIMARY KEY (user_id, org_id, activity, view)
+);
+
+CREATE INDEX idx_auth_cache_expires ON morbac.auth_cache(expires_at);
+CREATE INDEX idx_auth_cache_user_org ON morbac.auth_cache(user_id, org_id);
+
+COMMENT ON TABLE morbac.auth_cache IS
+'Authorization decision cache - expires after 5 minutes or when policies change';
+
+-- Invalidate cache for user/org
+CREATE OR REPLACE FUNCTION morbac.invalidate_cache(p_user_id UUID DEFAULT NULL, p_org_id UUID DEFAULT NULL)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF p_user_id IS NOT NULL AND p_org_id IS NOT NULL THEN
+        DELETE FROM morbac.auth_cache WHERE user_id = p_user_id AND org_id = p_org_id;
+    ELSIF p_org_id IS NOT NULL THEN
+        DELETE FROM morbac.auth_cache WHERE org_id = p_org_id;
+    ELSIF p_user_id IS NOT NULL THEN
+        DELETE FROM morbac.auth_cache WHERE user_id = p_user_id;
+    ELSE
+        DELETE FROM morbac.auth_cache;
+    END IF;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.invalidate_cache(UUID, UUID) IS
+'Invalidate auth cache for specific user/org or all entries';
+
+-- Auto cleanup expired cache entries
+CREATE OR REPLACE FUNCTION morbac.cleanup_auth_cache()
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_deleted INTEGER;
+BEGIN
+    DELETE FROM morbac.auth_cache WHERE expires_at < CURRENT_TIMESTAMP;
+    GET DIAGNOSTICS v_deleted = ROW_COUNT;
+    RETURN v_deleted;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.cleanup_auth_cache() IS
+'Remove expired cache entries - call periodically via cron';
+
+-- Trigger to invalidate cache on rule changes
+CREATE OR REPLACE FUNCTION morbac.invalidate_cache_on_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Clear cache for affected org
+    DELETE FROM morbac.auth_cache WHERE org_id = COALESCE(NEW.org_id, OLD.org_id);
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- Attach cache invalidation triggers
+CREATE TRIGGER trg_invalidate_cache_rules
+AFTER INSERT OR UPDATE OR DELETE ON morbac.rules
+FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
+
+CREATE TRIGGER trg_invalidate_cache_user_roles
+AFTER INSERT OR UPDATE OR DELETE ON morbac.user_roles
+FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
+
+CREATE TRIGGER trg_invalidate_cache_delegations
+AFTER INSERT OR UPDATE OR DELETE ON morbac.delegations
+FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
+
+CREATE TRIGGER trg_invalidate_cache_cross_org
+AFTER INSERT OR UPDATE OR DELETE ON morbac.cross_org_rules
+FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
+
+-- Trigger to refresh hierarchies when they change
+CREATE OR REPLACE FUNCTION morbac.refresh_on_hierarchy_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Refresh in background (this will block briefly but necessary)
+    PERFORM morbac.refresh_hierarchy_cache();
+    -- Also invalidate auth cache since hierarchies affect authorization
+    DELETE FROM morbac.auth_cache;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE TRIGGER trg_refresh_role_hierarchy
+AFTER INSERT OR UPDATE OR DELETE ON morbac.role_hierarchy
+FOR EACH STATEMENT EXECUTE FUNCTION morbac.refresh_on_hierarchy_change();
+
+CREATE TRIGGER trg_refresh_activity_hierarchy
+AFTER INSERT OR UPDATE OR DELETE ON morbac.activity_hierarchy
+FOR EACH STATEMENT EXECUTE FUNCTION morbac.refresh_on_hierarchy_change();
+
+CREATE TRIGGER trg_refresh_view_hierarchy
+AFTER INSERT OR UPDATE OR DELETE ON morbac.view_hierarchy
+FOR EACH STATEMENT EXECUTE FUNCTION morbac.refresh_on_hierarchy_change();
+
+-- =============================================================================
+-- AUTHORIZATION DECISION FUNCTION (CRITICAL)
 -- =============================================================================
 -- Implements the canonical OrBAC authorization decision
 --
@@ -1081,7 +1378,7 @@ COMMENT ON FUNCTION morbac.eval_context(UUID) IS 'Evaluates a context by calling
 -- - Default deny (no permission = deny)
 -- - Obligations and recommendations do NOT affect authorization
 
-CREATE OR REPLACE FUNCTION morbac.is_allowed(
+CREATE OR REPLACE FUNCTION morbac.is_allowed_nocache(
     p_user_id UUID,
     p_org_id UUID,
     p_activity TEXT,
@@ -1202,11 +1499,65 @@ BEGIN
 END;
 $$;
 
+COMMENT ON FUNCTION morbac.is_allowed_nocache(UUID, UUID, TEXT, TEXT) IS
+'Authorization without cache - use for debugging or when cache must be bypassed';
+
+-- Cached authorization check (default, recommended for production use)
+CREATE OR REPLACE FUNCTION morbac.is_allowed(
+    p_user_id UUID,
+    p_org_id UUID,
+    p_activity TEXT,
+    p_view TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_cached_result BOOLEAN;
+    v_computed_result BOOLEAN;
+    v_expires_at TIMESTAMPTZ;
+BEGIN
+    -- Try cache first
+    SELECT allowed, expires_at INTO v_cached_result, v_expires_at
+    FROM morbac.auth_cache
+    WHERE user_id = p_user_id
+      AND org_id = p_org_id
+      AND activity = p_activity
+      AND view = p_view
+      AND expires_at > CURRENT_TIMESTAMP;
+
+    IF FOUND THEN
+        RETURN v_cached_result;
+    END IF;
+
+    -- Cache miss - compute authorization
+    v_computed_result := morbac.is_allowed_nocache(p_user_id, p_org_id, p_activity, p_view);
+
+    -- Store in cache (TTL from config)
+    INSERT INTO morbac.auth_cache (user_id, org_id, activity, view, allowed, expires_at)
+    VALUES (
+        p_user_id,
+        p_org_id,
+        p_activity,
+        p_view,
+        v_computed_result,
+        CURRENT_TIMESTAMP + make_interval(secs => morbac.get_config('cache_ttl_seconds')::integer)
+    )
+    ON CONFLICT (user_id, org_id, activity, view) DO UPDATE
+    SET allowed = v_computed_result,
+        computed_at = CURRENT_TIMESTAMP,
+        expires_at = CURRENT_TIMESTAMP + make_interval(secs => morbac.get_config('cache_ttl_seconds')::integer);
+
+    RETURN v_computed_result;
+END;
+$$;
+
 COMMENT ON FUNCTION morbac.is_allowed(UUID, UUID, TEXT, TEXT) IS
-'Complete OrBAC authorization: role/activity/view hierarchies, delegation, derived roles, cross-org, prohibition precedence';
+'Complete OrBAC authorization with caching (default) - use is_allowed_nocache() for debugging';
 
 -- =============================================================================
--- 13. AUTHORIZATION TABLE
+-- POLICY DSL TABLE
 -- =============================================================================
 -- Simplified table for developers to declare policy
 -- Uses friendly names instead of UUIDs
@@ -1234,9 +1585,6 @@ COMMENT ON COLUMN morbac.policy.view IS 'View name';
 COMMENT ON COLUMN morbac.policy.modality IS 'Deontic modality';
 COMMENT ON COLUMN morbac.policy.context_name IS 'Context name (default: always)';
 COMMENT ON COLUMN morbac.policy.compiled IS 'Whether this policy entry has been compiled into rules';
-
-COMMENT ON FUNCTION morbac.is_allowed(UUID, UUID, TEXT, TEXT) IS
-'Complete OrBAC authorization: role/activity/view hierarchies, delegation, derived roles, cross-org, prohibition precedence';
 
 -- Helper function to check administration permissions
 CREATE OR REPLACE FUNCTION morbac.is_admin_allowed(
@@ -1294,7 +1642,7 @@ COMMENT ON FUNCTION morbac.is_admin_allowed(UUID, UUID, TEXT, TEXT) IS
 'Checks administration permissions for policy management operations';
 
 -- =============================================================================
--- 14. POLICY DSL
+-- POLICY COMPILER
 -- =============================================================================
 -- Translates policy DSL entries into concrete rules
 -- Resolves names to IDs
@@ -1372,7 +1720,7 @@ COMMENT ON FUNCTION morbac.compile_policy() IS
 'Compiles policy DSL entries into concrete rules - idempotent and safe to run multiple times';
 
 -- =============================================================================
--- 15. POLICY COMPILER HELPER FUNCTIONS
+-- RLS HELPER FUNCTIONS
 -- =============================================================================
 -- Helper functions for Row-Level Security policies
 -- Compatible with PostgREST
@@ -1450,7 +1798,7 @@ BEGIN
         RETURN FALSE;
     END IF;
 
-    -- Call authorization decision function
+    -- Call cached authorization decision function (default behavior)
     RETURN morbac.is_allowed(v_user_id, v_org_id, p_activity, p_view);
 END;
 $$;
@@ -1459,7 +1807,7 @@ COMMENT ON FUNCTION morbac.rls_check(TEXT, TEXT) IS
 'RLS helper: checks if current user is allowed to perform activity on view in current org';
 
 -- =============================================================================
--- 16. RLS AND RECOMMENDATIONS VIEWS
+-- OBLIGATIONS AND RECOMMENDATIONS
 -- =============================================================================
 -- Obligations and recommendations do NOT affect authorization
 -- They are queryable for informational purposes

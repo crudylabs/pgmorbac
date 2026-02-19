@@ -86,6 +86,9 @@ SELECT morbac.is_allowed(
     'read',
     'documents'
 ); -- Returns: true
+
+-- 7. Initialize performance cache (recommended for production)
+SELECT morbac.refresh_hierarchy_cache();
 ```
 
 ## Usage
@@ -93,8 +96,14 @@ SELECT morbac.is_allowed(
 ### Authorization Check
 
 ```sql
+-- Production (cached by default)
 SELECT morbac.is_allowed(user_id, org_id, activity, view);
+
+-- Debugging (bypasses cache)
+SELECT morbac.is_allowed_nocache(user_id, org_id, activity, view);
 ```
+
+See [PERFORMANCE.md](docs/PERFORMANCE.md) for optimization details.
 
 ### Row-Level Security (RLS)
 
@@ -148,12 +157,13 @@ make cleanup                # Remove test database
 
 ## Documentation
 
-- [DOCUMENTATION.md](DOCUMENTATION.md) - Architecture, API reference, integration guides
-- [ADMIN_GUIDE.md](ADMIN_GUIDE.md) - Organization administrator setup and delegation
+- [DOCUMENTATION.md](docs/DOCUMENTATION.md) - Architecture, API reference, integration guides
+- [PERFORMANCE.md](docs/PERFORMANCE.md) - Performance optimization and caching guide
+- [ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) - Organization administrator setup and delegation
+- [SECURITY.md](docs/SECURITY.md) - Security policy
+- [CONTRIBUTING.md](docs/CONTRIBUTING.md) - Contribution guidelines
 - [test_morbac.sql](test_morbac.sql) - Test scenarios and examples
 - [CHANGELOG.md](CHANGELOG.md) - Version history
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
-- [SECURITY.md](SECURITY.md) - Security policy
 
 ## Architecture
 
