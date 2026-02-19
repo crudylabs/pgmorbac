@@ -1,0 +1,17 @@
+# Generated versioned files (created by 'make release')
+morbac_pg--*.sql
+
+# Test database dumps
+*.dump
+*.backup
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/

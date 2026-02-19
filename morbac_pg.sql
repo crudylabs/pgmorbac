@@ -1,5 +1,5 @@
 -- =============================================================================
--- morbac_pg Extension - Version 1.0.0
+-- morbac_pg Extension
 -- =============================================================================
 -- Multi-OrBAC: Organization-Based Access Control with Multi-Organization Support
 -- Based on the CNRS research paper on Multi-OrBAC model

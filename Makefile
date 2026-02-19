@@ -2,8 +2,12 @@
 # Multi-OrBAC: Organization-Based Access Control
 
 EXTENSION = morbac_pg
-EXTVERSION = 1.0.0
 
+# Read version from control file
+EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed "s/default_version = '\(.*\)'/\1/")
+
+# For development, work on unversioned file
+DEV_SQL = $(EXTENSION).sql
 DATA = $(EXTENSION)--$(EXTVERSION).sql
 DOCS = README.md
 
@@ -14,46 +18,34 @@ include $(PGXS)
 
 # Custom targets
 
-# Install extension in PostgreSQL
+# Create versioned release file from development file
+.PHONY: release
+release:
+	@echo "Preparing release $(EXTVERSION)..."
+	@if [ ! -f $(DEV_SQL) ]; then \
+		echo "Error: $(DEV_SQL) not found"; \
+		exit 1; \
+	fi
+	cp $(DEV_SQL) $(DATA)
+	@echo "Created $(DATA)"
+	@echo "Ready to commit and tag with: git tag v$(EXTVERSION)"
+
+# Install extension in PostgreSQL (creates versioned file if needed)
 .PHONY: install
-install:
+install: release
 	@echo "Installing morbac_pg extension..."
 	$(MAKE) -f Makefile install
 
-# Run tests
+# Run tests with development file in temporary database
 .PHONY: test
 test:
-	@echo "Running morbac_pg tests..."
-	psql -f test_morbac.sql
-
-# Run tests on specific database
-.PHONY: test-db
-test-db:
-	@if [ -z "$(DB)" ]; then \
-		echo "Usage: make test-db DB=your_database"; \
-		exit 1; \
-	fi
-	@echo "Running tests on database $(DB)..."
-	psql -d $(DB) -f test_morbac.sql
-
-# Run tests in dedicated test database
-.PHONY: test
-test:
-	@echo "Creating test database morbac_test..."
+	@echo "Testing with development file..."
 	-dropdb morbac_test 2>/dev/null || true
 	createdb morbac_test
-	@echo "Running tests..."
+	psql -d morbac_test -f $(DEV_SQL)
 	psql -d morbac_test -f test_morbac.sql
-	@echo ""
-	@echo "Tests completed. Database 'morbac_test' is available."
-	@echo "To explore: psql -d morbac_test"
-	@echo "To cleanup: dropdb morbac_test"
-
-# Cleanup test database
-.PHONY: cleanup
-cleanup:
-	@echo "Dropping test database..."
-	-dropdb morbac_test 2>/dev/null && echo "Test database dropped." || echo "No test database found."
+	dropdb morbac_test
+	@echo "Test completed."
 
 # Uninstall extension
 .PHONY: uninstall
@@ -66,14 +58,19 @@ uninstall:
 help:
 	@echo "morbac_pg Makefile targets:"
 	@echo ""
-	@echo "  make install      - Install extension in PostgreSQL"
+	@echo "Development:"
+	@echo "  Edit morbac_pg.sql (unversioned) for daily development"
+	@echo ""
+	@echo "  make test         - Test with development file"
+	@echo "  make release      - Create versioned file from morbac_pg.sql"
+	@echo "  make install      - Create release and install extension"
 	@echo "  make uninstall    - Uninstall extension from PostgreSQL"
-	@echo "  make test         - Run tests on default database"
-	@echo "  make test-db DB=name - Run tests on specified database"
-	@echo "  make test    - Create test DB, run tests, keep DB"
-	@echo "  make cleanup      - Drop test database"
 	@echo "  make help         - Show this help"
 	@echo ""
-	@echo "Quick start:"
-	@echo "  make test    # Run complete test in isolated database"
+	@echo "Workflow:"
+	@echo "  1. Edit morbac_pg.sql (version-free development)"
+	@echo "  2. make test (test your changes)"
+	@echo "  3. Update version in morbac_pg.control"
+	@echo "  4. make release (creates morbac_pg--X.Y.Z.sql)"
+	@echo "  5. git tag vX.Y.Z && git push --tags"
 	@echo ""
