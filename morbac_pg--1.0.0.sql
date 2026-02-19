@@ -1895,7 +1895,7 @@ COMMENT ON FUNCTION morbac.pending_recommendations(UUID, UUID) IS
 'Returns recommendations for a user in an organization (informational only)';
 
 -- =============================================================================
--- 17. OBLIGATIONS FUNCTIONS
+-- OBLIGATIONS FUNCTIONS
 -- =============================================================================
 
 -- Get all roles for a user in an organization
@@ -1953,7 +1953,7 @@ COMMENT ON FUNCTION morbac.user_has_role(UUID, UUID, TEXT) IS
 'Returns true if user has specific role in organization';
 
 -- =============================================================================
--- 17a. ADMIN HELPER FUNCTIONS
+-- ADMIN HELPER FUNCTIONS
 -- =============================================================================
 
 -- Helper: Check if user can assign/revoke roles
@@ -2120,26 +2120,26 @@ COMMENT ON FUNCTION morbac.admin_revoke_role(UUID, UUID, UUID, UUID) IS
 'Revoke role from user with admin permission check';
 
 -- =============================================================================
--- 18. UTILITY RESOURCE PATTERN (GUIDANCE)
+-- UTILITY RESOURCE PATTERN (GUIDANCE)
 -- =============================================================================
 --
 -- For resources that belong to multiple organizations:
 --
--- 1. Create resource table (org-neutral):
+-- Create resource table (org-neutral):
 --    CREATE TABLE app.documents (
 --        id UUID PRIMARY KEY,
 --        content TEXT,
 --        ...
 --    );
 --
--- 2. Create organization membership table:
+-- Create organization membership table:
 --    CREATE TABLE app.document_orgs (
 --        document_id UUID REFERENCES app.documents(id),
 --        org_id UUID REFERENCES morbac.orgs(id),
 --        PRIMARY KEY (document_id, org_id)
 --    );
 --
--- 3. Apply RLS with multi-org support:
+-- Apply RLS with multi-org support:
 --    ALTER TABLE app.documents ENABLE ROW LEVEL SECURITY;
 --
 --    CREATE POLICY document_select ON app.documents
