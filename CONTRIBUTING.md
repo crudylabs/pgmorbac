@@ -1,6 +1,6 @@
-# Contributing to morbac_pg
+# Contributing to pg_morbac
 
-Thank you for your interest in contributing to morbac_pg!
+Thank you for your interest in contributing to pg_morbac!
 
 ## How to Contribute
 
@@ -62,8 +62,8 @@ brew install postgresql  # macOS
 # or use your package manager
 
 # Clone your fork
-git clone https://github.com/your-username/morbac_pg.git
-cd morbac_pg
+git clone https://github.com/your-username/pg_morbac.git
+cd pg_morbac
 
 # Install the extension
 make install

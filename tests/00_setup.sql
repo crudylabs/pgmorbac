@@ -6,11 +6,11 @@
 -- =============================================================================
 
 -- Clean up any previous test
-DROP EXTENSION IF EXISTS morbac_pg CASCADE;
+DROP EXTENSION IF EXISTS pg_morbac CASCADE;
 DROP SCHEMA IF EXISTS morbac CASCADE;
 
 -- Install the extension
-CREATE EXTENSION morbac_pg;
+CREATE EXTENSION pg_morbac;
 
 -- Verify schema and tables exist
 \echo '=== Schema and Tables Created ==='

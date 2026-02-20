@@ -8,7 +8,7 @@
 
 ## Security Model
 
-morbac_pg implements the Multi-OrBAC access control model with the following security principles:
+pg_morbac implements the Multi-OrBAC access control model with the following security principles:
 
 ### Default Deny
 - No permission = access denied
@@ -36,7 +36,7 @@ morbac_pg implements the Multi-OrBAC access control model with the following sec
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in morbac_pg, please report it responsibly:
+If you discover a security vulnerability in pg_morbac, please report it responsibly:
 
 ### DO NOT
 - Open a public GitHub issue for security vulnerabilities
@@ -67,7 +67,7 @@ If you discover a security vulnerability in morbac_pg, please report it responsi
 
 ## Security Best Practices
 
-When using morbac_pg:
+When using pg_morbac:
 
 ### 1. Protect Authorization Headers
 ```sql
@@ -80,7 +80,7 @@ When using morbac_pg:
 -- Always enable RLS on application tables
 ALTER TABLE app.documents ENABLE ROW LEVEL SECURITY;
 
--- Use morbac_pg for authorization
+-- Use pg_morbac for authorization
 CREATE POLICY doc_access ON app.documents
 FOR ALL USING (morbac.rls_check('read', 'documents'));
 ```
@@ -120,7 +120,7 @@ LIMIT 100;
 
 ### 5. Regular Updates
 - Keep PostgreSQL updated
-- Monitor for morbac_pg security advisories
+- Monitor for pg_morbac security advisories
 - Review and test policies regularly
 
 ### 6. Principle of Least Privilege
@@ -138,4 +138,4 @@ LIMIT 100;
 
 ## Acknowledgments
 
-We appreciate responsible disclosure and will acknowledge security researchers who help improve morbac_pg security.
+We appreciate responsible disclosure and will acknowledge security researchers who help improve pg_morbac security.

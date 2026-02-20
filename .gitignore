@@ -1,6 +1,6 @@
 # Generated files
-morbac_pg.sql
-morbac_pg--*.sql
+pg_morbac.sql
+pg_morbac--*.sql
 
 # Test database dumps
 *.dump

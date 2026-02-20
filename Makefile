@@ -1,7 +1,7 @@
-# Makefile for morbac_pg PostgreSQL Extension
+# Makefile for pg_morbac PostgreSQL Extension
 # Multi-OrBAC: Organization-Based Access Control
 
-EXTENSION = morbac_pg
+EXTENSION = pg_morbac
 
 # Read version from control file
 EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed "s/default_version = '\(.*\)'/\1/")
@@ -35,7 +35,7 @@ build:
 # Install extension in PostgreSQL (creates versioned file if needed)
 .PHONY: install
 install: build
-	@echo "Installing morbac_pg extension..."
+	@echo "Installing pg_morbac extension..."
 	$(MAKE) -f Makefile install
 
 # Run tests with development file in temporary database
@@ -51,18 +51,18 @@ test: build
 # Uninstall extension
 .PHONY: uninstall
 uninstall:
-	@echo "Uninstalling morbac_pg extension..."
+	@echo "Uninstalling pg_morbac extension..."
 	$(MAKE) -f Makefile uninstall
 
 # Show help
 .PHONY: help
 help:
-	@echo "morbac_pg Makefile targets:"
+	@echo "pg_morbac Makefile targets:"
 	@echo ""
 	@echo "Development:"
 	@echo "  Edit source files in src/ directory"
 	@echo ""
-	@echo "  make build        - Build versioned morbac_pg--X.Y.Z.sql from src/"
+	@echo "  make build        - Build versioned pg_morbac--X.Y.Z.sql from src/"
 	@echo "  make test         - Build and run test suite"
 	@echo "  make install      - Build and install extension to PostgreSQL"
 	@echo "  make uninstall    - Uninstall extension from PostgreSQL"
@@ -71,7 +71,7 @@ help:
 	@echo "Workflow:"
 	@echo "  1. Edit source files in src/"
 	@echo "  2. make test (build and test changes)"
-	@echo "  3. Update version in morbac_pg.control"
+	@echo "  3. Update version in pg_morbac.control"
 	@echo "  4. make build (builds versioned SQL)"
 	@echo "  5. git tag vX.Y.Z && git push --tags"
 	@echo ""

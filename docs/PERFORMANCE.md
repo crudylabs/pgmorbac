@@ -1,10 +1,10 @@
 # Performance Optimization Guide
 
-This guide explains the performance optimizations built into morbac_pg and how to use them effectively.
+This guide explains the performance optimizations built into pg_morbac and how to use them effectively.
 
 ## Performance Architecture
 
-morbac_pg includes several layers of optimization:
+pg_morbac includes several layers of optimization:
 
 1. **Materialized Views** - Precomputed hierarchy transitive closures
 2. **Authorization Cache** - Configurable TTL cache for authorization decisions (default: 5 minutes)
@@ -414,7 +414,7 @@ $$;
 
 ## Conclusion
 
-With these optimizations, morbac_pg can handle:
+With these optimizations, pg_morbac can handle:
 - **>1000 authorization checks/second** (cached)
 - **>100 authorization checks/second** (uncached)
 - **Complex hierarchies** (10+ levels deep)

@@ -1,17 +1,17 @@
 #!/bin/bash
 # =============================================================================
-# Build Script for morbac_pg Extension
+# Build Script for pg_morbac Extension
 # =============================================================================
-# Concatenates SQL source files in src/ into a single morbac_pg.sql file
+# Concatenates SQL source files in src/ into a single pg_morbac.sql file
 # Order: header first, then specific order for dependencies, footer last
 # =============================================================================
 
 set -e
 
 SRC_DIR="src"
-OUTPUT="morbac_pg.sql"
+OUTPUT="pg_morbac.sql"
 
-echo "Building morbac_pg.sql from source files..."
+echo "Building pg_morbac.sql from source files..."
 
 # Check if src directory exists
 if [ ! -d "$SRC_DIR" ]; then

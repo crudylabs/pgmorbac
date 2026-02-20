@@ -1,10 +1,10 @@
 #!/bin/bash
-# Installation script for morbac_pg extension
+# Installation script for pg_morbac extension
 
 set -e
 
 echo "=================================="
-echo "morbac_pg Extension Installer"
+echo "pg_morbac Extension Installer"
 echo "=================================="
 echo ""
 
@@ -40,10 +40,10 @@ if [ ! -d "$EXTDIR" ]; then
 fi
 
 # Detect version from control file
-CONTROL_FILE="morbac_pg.control"
+CONTROL_FILE="pg_morbac.control"
 if [ ! -f "$CONTROL_FILE" ]; then
     echo "Error: $CONTROL_FILE not found"
-    echo "Please run this script from the morbac_pg directory"
+    echo "Please run this script from the pg_morbac directory"
     exit 1
 fi
 
@@ -53,7 +53,7 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-SQL_FILE="morbac_pg--${VERSION}.sql"
+SQL_FILE="pg_morbac--${VERSION}.sql"
 
 echo "Detected version: $VERSION"
 echo ""
@@ -67,7 +67,7 @@ fi
 
 # Copy extension files
 echo "Installing extension files..."
-cp -v morbac_pg.control "$EXTDIR/"
+cp -v pg_morbac.control "$EXTDIR/"
 cp -v "$SQL_FILE" "$EXTDIR/"
 
 echo ""
@@ -77,7 +77,7 @@ echo "=================================="
 echo ""
 echo "To use the extension in your database:"
 echo ""
-echo "  psql -d your_database -c 'CREATE EXTENSION morbac_pg;'"
+echo "  psql -d your_database -c 'CREATE EXTENSION pg_morbac;'"
 echo ""
 echo "To run tests:"
 echo ""
