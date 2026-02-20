@@ -42,8 +42,7 @@ test:
 	@echo "Testing with development file..."
 	-dropdb morbac_test 2>/dev/null || true
 	createdb morbac_test
-	psql -d morbac_test -f $(DEV_SQL)
-	psql -d morbac_test -f test_morbac.sql
+	@./tests/run_tests.sh morbac_test
 	dropdb morbac_test
 	@echo "Test completed."
 
