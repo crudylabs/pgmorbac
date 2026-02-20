@@ -1,4 +1,5 @@
-# Generated versioned files (created by 'make release')
+# Generated files
+morbac_pg.sql
 morbac_pg--*.sql
 
 # Test database dumps

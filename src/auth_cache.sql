@@ -1,0 +1,115 @@
+-- =============================================================================
+-- PERFORMANCE: AUTHORIZATION CACHE
+-- =============================================================================
+-- Cache authorization decisions to avoid repeated expensive computations
+-- Cache TTL is configurable via morbac.config table (key: cache_ttl_seconds)
+
+CREATE TABLE morbac.auth_cache (
+    user_id UUID NOT NULL,
+    org_id UUID NOT NULL,
+    activity TEXT NOT NULL,
+    view TEXT NOT NULL,
+    allowed BOOLEAN NOT NULL,
+    computed_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT (CURRENT_TIMESTAMP + INTERVAL '5 minutes'),
+    PRIMARY KEY (user_id, org_id, activity, view)
+);
+
+CREATE INDEX idx_auth_cache_expires ON morbac.auth_cache(expires_at);
+CREATE INDEX idx_auth_cache_user_org ON morbac.auth_cache(user_id, org_id);
+
+COMMENT ON TABLE morbac.auth_cache IS
+'Authorization decision cache - expires after 5 minutes or when policies change';
+
+-- Invalidate cache for user/org
+CREATE OR REPLACE FUNCTION morbac.invalidate_cache(p_user_id UUID DEFAULT NULL, p_org_id UUID DEFAULT NULL)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF p_user_id IS NOT NULL AND p_org_id IS NOT NULL THEN
+        DELETE FROM morbac.auth_cache WHERE user_id = p_user_id AND org_id = p_org_id;
+    ELSIF p_org_id IS NOT NULL THEN
+        DELETE FROM morbac.auth_cache WHERE org_id = p_org_id;
+    ELSIF p_user_id IS NOT NULL THEN
+        DELETE FROM morbac.auth_cache WHERE user_id = p_user_id;
+    ELSE
+        DELETE FROM morbac.auth_cache;
+    END IF;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.invalidate_cache(UUID, UUID) IS
+'Invalidate auth cache for specific user/org or all entries';
+
+-- Auto cleanup expired cache entries
+CREATE OR REPLACE FUNCTION morbac.cleanup_auth_cache()
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_deleted INTEGER;
+BEGIN
+    DELETE FROM morbac.auth_cache WHERE expires_at < CURRENT_TIMESTAMP;
+    GET DIAGNOSTICS v_deleted = ROW_COUNT;
+    RETURN v_deleted;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.cleanup_auth_cache() IS
+'Remove expired cache entries - call periodically via cron';
+
+-- Trigger to invalidate cache on rule changes
+CREATE OR REPLACE FUNCTION morbac.invalidate_cache_on_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Clear cache for affected org
+    DELETE FROM morbac.auth_cache WHERE org_id = COALESCE(NEW.org_id, OLD.org_id);
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+-- Attach cache invalidation triggers
+CREATE TRIGGER trg_invalidate_cache_rules
+AFTER INSERT OR UPDATE OR DELETE ON morbac.rules
+FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
+
+CREATE TRIGGER trg_invalidate_cache_user_roles
+AFTER INSERT OR UPDATE OR DELETE ON morbac.user_roles
+FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
+
+CREATE TRIGGER trg_invalidate_cache_delegations
+AFTER INSERT OR UPDATE OR DELETE ON morbac.delegations
+FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
+
+CREATE TRIGGER trg_invalidate_cache_cross_org
+AFTER INSERT OR UPDATE OR DELETE ON morbac.cross_org_rules
+FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
+
+-- Trigger to refresh hierarchies when they change
+CREATE OR REPLACE FUNCTION morbac.refresh_on_hierarchy_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Refresh in background (this will block briefly but necessary)
+    PERFORM morbac.refresh_hierarchy_cache();
+    -- Also invalidate auth cache since hierarchies affect authorization
+    DELETE FROM morbac.auth_cache;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE TRIGGER trg_refresh_role_hierarchy
+AFTER INSERT OR UPDATE OR DELETE ON morbac.role_hierarchy
+FOR EACH STATEMENT EXECUTE FUNCTION morbac.refresh_on_hierarchy_change();
+
+CREATE TRIGGER trg_refresh_activity_hierarchy
+AFTER INSERT OR UPDATE OR DELETE ON morbac.activity_hierarchy
+FOR EACH STATEMENT EXECUTE FUNCTION morbac.refresh_on_hierarchy_change();
+
+CREATE TRIGGER trg_refresh_view_hierarchy
+AFTER INSERT OR UPDATE OR DELETE ON morbac.view_hierarchy
+FOR EACH STATEMENT EXECUTE FUNCTION morbac.refresh_on_hierarchy_change();

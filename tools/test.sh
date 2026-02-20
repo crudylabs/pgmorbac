@@ -3,14 +3,16 @@
 # Test Runner for morbac_pg Extension
 # =============================================================================
 # Runs all tests in order, loading setup data and executing each test file.
-# Usage: ./run_tests.sh [database_name]
+# Usage: ./tools/test.sh [database_name]
 # =============================================================================
 
 set -e
 
 # Database name (default: morbac_test)
 DB="${1:-morbac_test}"
-TEST_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+TEST_DIR="$PROJECT_DIR/tests"
 
 echo "======================================"
 echo "morbac_pg Extension Test Suite"
@@ -20,7 +22,7 @@ echo ""
 
 # Install extension
 echo "=== Installing Extension ==="
-psql -d "$DB" -f "$TEST_DIR/../morbac_pg.sql"
+psql -d "$DB" -f "$PROJECT_DIR/morbac_pg.sql"
 
 # Load common setup
 echo ""

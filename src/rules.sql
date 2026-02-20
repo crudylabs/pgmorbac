@@ -1,0 +1,78 @@
+-- =============================================================================
+-- RULES (Core OrBAC Policy)
+-- =============================================================================
+-- Implements the OrBAC rule relation:
+-- Rule(org, role, activity, view, context, modality)
+--
+-- Represents: Permission, Prohibition, Obligation, or Recommendation
+
+CREATE TABLE morbac.rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    org_id UUID NOT NULL REFERENCES morbac.orgs(id) ON DELETE CASCADE,
+    role_id UUID NOT NULL REFERENCES morbac.roles(id) ON DELETE CASCADE,
+    activity TEXT NOT NULL REFERENCES morbac.activities(name) ON DELETE CASCADE,
+    view TEXT NOT NULL REFERENCES morbac.views(name) ON DELETE CASCADE,
+    context_id UUID NOT NULL REFERENCES morbac.contexts(id) ON DELETE CASCADE,
+    modality morbac.modality NOT NULL,
+    valid_from TIMESTAMPTZ,
+    valid_until TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    metadata JSONB DEFAULT '{}'::jsonb,
+    UNIQUE(org_id, role_id, activity, view, context_id, modality),
+    CHECK (valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from)
+);
+
+CREATE INDEX idx_rules_org_role ON morbac.rules(org_id, role_id);
+CREATE INDEX idx_rules_activity_view ON morbac.rules(activity, view);
+CREATE INDEX idx_rules_modality ON morbac.rules(modality);
+CREATE INDEX idx_rules_lookup ON morbac.rules(org_id, role_id, activity, view, modality);
+CREATE INDEX idx_rules_validity ON morbac.rules(valid_from, valid_until);
+-- Performance: Fast lookup for active rules during authorization
+CREATE INDEX idx_rules_fast_lookup ON morbac.rules(org_id, modality, activity, view)
+INCLUDE (role_id, context_id)
+WHERE (valid_from IS NULL OR valid_from <= CURRENT_TIMESTAMP)
+  AND (valid_until IS NULL OR valid_until > CURRENT_TIMESTAMP);
+
+COMMENT ON TABLE morbac.rules IS 'Core OrBAC rules - Permission, Prohibition, Obligation, Recommendation';
+COMMENT ON COLUMN morbac.rules.org_id IS 'Organization scope';
+COMMENT ON COLUMN morbac.rules.role_id IS 'Role this rule applies to';
+COMMENT ON COLUMN morbac.rules.activity IS 'Activity (abstract action)';
+COMMENT ON COLUMN morbac.rules.view IS 'View (abstract object category)';
+COMMENT ON COLUMN morbac.rules.context_id IS 'Context condition';
+COMMENT ON COLUMN morbac.rules.modality IS 'Deontic modality: permission, prohibition, obligation, recommendation';
+COMMENT ON COLUMN morbac.rules.valid_from IS 'Optional: Rule valid from this timestamp';
+COMMENT ON COLUMN morbac.rules.valid_until IS 'Optional: Rule valid until this timestamp';
+
+-- Helper function to check if a rule is currently valid
+CREATE OR REPLACE FUNCTION morbac.is_rule_valid(
+    p_valid_from TIMESTAMPTZ,
+    p_valid_until TIMESTAMPTZ
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_now TIMESTAMPTZ := CURRENT_TIMESTAMP;
+BEGIN
+    -- If no temporal constraints, rule is valid
+    IF p_valid_from IS NULL AND p_valid_until IS NULL THEN
+        RETURN TRUE;
+    END IF;
+
+    -- Check valid_from
+    IF p_valid_from IS NOT NULL AND v_now < p_valid_from THEN
+        RETURN FALSE;
+    END IF;
+
+    -- Check valid_until
+    IF p_valid_until IS NOT NULL AND v_now >= p_valid_until THEN
+        RETURN FALSE;
+    END IF;
+
+    RETURN TRUE;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.is_rule_valid(TIMESTAMPTZ, TIMESTAMPTZ) IS
+'Check if a rule is currently valid based on temporal constraints';
