@@ -208,83 +208,121 @@ Multi-OrBAC implements four modalities:
 
 Only permissions and prohibitions affect `is_allowed()` decisions.
 
-### Context Evaluation
+**Evaluation Priority:**
 
-Contexts are boolean predicates that determine if a rule applies:
-
-```sql
--- Context function signature
-CREATE OR REPLACE FUNCTION morbac.my_context()
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-STABLE  -- Important for RLS performance
-AS $$
-BEGIN
-    RETURN <condition>;
-END;
-$$;
-
--- Register context
-INSERT INTO morbac.contexts (name, evaluator) VALUES
-    ('my_context', 'morbac.my_context'::regproc);
+```mermaid
+flowchart LR
+    A[Check Rule] --> B{Prohibition?}
+    B -->|Yes| C[DENY]
+    B -->|No| D{Permission?}
+    D -->|Yes| E[ALLOW]
+    D -->|No| F[DENY]
 ```
 
-Context functions should:
+**Example: Employee Document Access**
+
+```sql
+-- Employees can read documents
+INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
+VALUES (org_id, employee_role_id, 'read', 'documents', 'permission');
+
+-- Suspended employees cannot (prohibition overrides permission)
+INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
+VALUES (org_id, suspended_role_id, 'read', 'documents', 'prohibition');
+
+-- Check access
+SELECT morbac.is_allowed(employee_id, org_id, 'read', 'documents'); -- TRUE
+SELECT morbac.is_allowed(suspended_id, org_id, 'read', 'documents'); -- FALSE (prohibited)
+```
+
+### Context Evaluation
+
+Contexts are boolean predicates that determine if a rule applies. They enable dynamic, condition-based access control.
+
+**Context Evaluation Flow:**
+
+```mermaid
+flowchart TD
+    A[Rule Matches] --> B[Evaluate Context]
+    B --> C{Context Returns TRUE?}
+    C -->|Yes| D[Rule Applies]
+    C -->|No| E[Rule Ignored]
+```
+
+**Example: Business Hours Context**
+
+```sql
+-- Create a context for business hours (Monday-Friday, 9am-5pm)
+CREATE FUNCTION morbac.ctx_business_hours() RETURNS BOOLEAN STABLE AS $$
+    SELECT EXTRACT(DOW FROM now()) BETWEEN 1 AND 5
+       AND EXTRACT(HOUR FROM now()) BETWEEN 9 AND 17;
+$$ LANGUAGE SQL;
+
+INSERT INTO morbac.contexts (name, evaluator) VALUES
+    ('business_hours', 'morbac.ctx_business_hours'::regproc);
+
+-- Contractors can only work during business hours
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality)
+SELECT org_id, contractor_role_id, 'read', 'documents', id, 'permission'
+FROM morbac.contexts WHERE name = 'business_hours';
+```
+
+**Context Best Practices:**
 
 - Use STABLE (not VOLATILE) for RLS compatibility
 - Keep logic simple and fast
 - Avoid external dependencies
 - Consider caching if computation is expensive
+- Return FALSE on errors for safe defaults
+- Test thoroughly as contexts affect security
 
 ### Policy DSL
 
-Simplified policy declaration:
+The Policy DSL provides a simplified way to declare policies using human-readable names instead of UUIDs, making policy management more intuitive.
+
+**DSL Compilation Flow:**
+
+```mermaid
+flowchart LR
+    A[Policy DSL] --> B[compile_policy]
+    B --> C{Resolve Names}
+    C --> D[Create Activities/Views]
+    C --> E[Lookup Orgs/Roles]
+    D --> F[Generate Rules]
+    E --> F
+    F --> G[morbac.rules]
+```
+
+**Example: Simple Policy Setup**
 
 ```sql
--- Insert policies using names
+-- Use names instead of UUIDs
 INSERT INTO morbac.policy (org_name, role_name, activity, view, modality) VALUES
-    ('Acme Corp', 'manager', 'approve', 'requests', 'permission');
+    ('Acme Corp', 'employee', 'read', 'documents', 'permission');
 
--- Compile (idempotent)
+-- Compile into actual rules
 SELECT * FROM morbac.compile_policy();
 ```
 
-Compiler behavior:
-- Creates missing activities/views
-- Resolves names to UUIDs
-- Creates entries in `morbac.rules`
+**Compiler Behavior:**
+
+- Creates missing activities/views automatically
+- Resolves names to UUIDs for orgs/roles/contexts
+- Creates entries in `morbac.rules` table
 - Reports errors for missing orgs/roles/contexts
-- Safe to run multiple times
+- Safe to run multiple times (idempotent)
+- Returns detailed results for each policy
+
+**When to Use Policy DSL vs Direct Rules:**
+
+- **Use Policy DSL**: Initial setup, bulk imports, human-readable policy files
+- **Use Direct Rules**: Dynamic policies, application-generated rules, when you already have UUIDs
 
 ## Advanced Features
 
 ### Hierarchies
 
-Organizations, roles, activities, and views all support hierarchical relationships with transitive closure.
-
-```sql
--- Organization hierarchy (via parent_id)
-INSERT INTO morbac.orgs (name, parent_id) VALUES ('EMEA', parent_org_id);
-SELECT * FROM morbac.get_org_ancestors(org_id);
-SELECT * FROM morbac.get_org_descendants(org_id);
-
--- Role hierarchy (senior inherits from junior)
-INSERT INTO morbac.role_hierarchy (senior_role_id, junior_role_id)
-VALUES (manager_role_id, employee_role_id);
-SELECT * FROM morbac.get_inherited_roles(role_id);
-
--- Activity hierarchy (parent includes children)
-INSERT INTO morbac.activity_hierarchy (parent_activity, child_activity)
-VALUES ('write', 'create'), ('write', 'update');
-SELECT * FROM morbac.get_effective_activities('write');
-
--- View hierarchy (parent includes children)
-INSERT INTO morbac.view_hierarchy (parent_view, child_view)
-VALUES ('documents', 'invoices'), ('documents', 'contracts');
-SELECT * FROM morbac.get_effective_views('documents');
-```
-
-Example hierarchy diagram:
+Organizations, roles, activities, and views support hierarchical relationships with transitive closure.
 
 ```mermaid
 graph TD
@@ -293,159 +331,165 @@ graph TD
     A -.->|transitive| C
 ```
 
+**Example: Role Hierarchy**
+
+Managers inherit all employee permissions:
+
+```sql
+-- Create role hierarchy
+INSERT INTO morbac.role_hierarchy (senior_role_id, junior_role_id)
+VALUES (manager_role_id, employee_role_id);
+
+-- Grant permission to employees
+INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
+VALUES (org_id, employee_role_id, 'read', 'documents', 'permission');
+
+-- Managers automatically get 'read documents' through inheritance
+SELECT morbac.is_allowed(manager_id, org_id, 'read', 'documents'); -- TRUE
+```
+
 ### Delegation
 
-Temporary role delegation with time bounds:
+Temporary role delegation with time bounds.
+
+**Example: Vacation Delegation**
+
+Alice delegates her approver role to Bob for one week:
 
 ```sql
 INSERT INTO morbac.delegations (
-    delegator_user_id, delegate_user_id, role_id, org_id,
-    valid_from, valid_until
+    delegator_user_id, delegate_user_id, role_id, org_id, valid_until
 ) VALUES (
-    alice_uuid, bob_uuid, approver_role_id, org_id,
-    NOW(), NOW() + INTERVAL '7 days'
+    alice_id, bob_id, approver_role_id, org_id, NOW() + INTERVAL '7 days'
 );
-```
 
-Automatically included in `get_comprehensive_roles()` when active. Set `valid_until` to NULL for indefinite delegation.
+-- Bob can now approve during this period
+SELECT morbac.is_allowed(bob_id, org_id, 'approve', 'requests'); -- TRUE (until expires)
+```
 
 ### Negative Role Assignments
 
-Explicit prohibitions with highest precedence:
+Explicitly revoke roles with highest precedence.
+
+**Example: Suspended Admin**
+
+Temporarily suspend an admin without removing the role:
 
 ```sql
 INSERT INTO morbac.negative_role_assignments (user_id, role_id, org_id, reason)
-VALUES (user_uuid, admin_role_id, org_id, 'Security audit requirement');
+VALUES (alice_id, admin_role_id, org_id, 'Under investigation');
+
+-- Alice loses admin access even though role assignment remains
+SELECT morbac.is_allowed(alice_id, org_id, 'manage', 'users'); -- FALSE
 ```
 
 ### Separation of Duty
 
-Prevents users from holding conflicting roles that could enable fraud or abuse.
+Prevents users from holding conflicting roles.
 
-**Example: Financial Controls**
+**Example: Invoice Approval**
 
-In an accounting system, the same person should not both create and approve invoices:
+The same person cannot both create and approve invoices:
 
 ```sql
--- Create roles
-INSERT INTO morbac.roles (org_id, name) VALUES
-    (org_id, 'invoice_creator'),
-    (org_id, 'invoice_approver');
-
--- Define conflict
+-- Define the conflict
 INSERT INTO morbac.sod_conflicts (role1_id, role2_id, org_id, description)
-VALUES (creator_role_id, approver_role_id, org_id, 'Financial controls: prevent self-approval');
+VALUES (creator_role_id, approver_role_id, org_id, 'Cannot create and approve');
 
--- Check before assignment
-SELECT morbac.check_sod_violation(alice_uuid, org_id);
--- Returns: empty array if valid, or ['invoice_creator', 'invoice_approver'] if conflict exists
+-- Check before assigning approver role to Alice (who is already a creator)
+SELECT morbac.check_sod_violation(alice_id, org_id);
+-- Returns: ['invoice_creator', 'invoice_approver'] if conflict would occur
 ```
-
-If Alice already has the `invoice_creator` role, attempting to assign `invoice_approver` will violate the constraint.
 
 ### Cardinality Constraints
 
-Enforce minimum and maximum users per role:
+Enforce minimum and maximum users per role.
+
+**Example: Admin Count Limits**
+
+Require 2-5 administrators at all times:
 
 ```sql
--- Require 1-3 administrators
 INSERT INTO morbac.role_cardinality (role_id, org_id, min_users, max_users)
-VALUES (admin_role_id, org_id, 1, 3);
+VALUES (admin_role_id, org_id, 2, 5);
 
--- Validate before assignment
+-- Check before adding/removing admins
 SELECT morbac.check_cardinality_violation(admin_role_id, org_id);
--- Returns: error message if constraint violated, NULL if valid
+-- Returns: error message if would violate constraint, NULL if valid
 ```
 
-Dynamically computed roles via custom functions:
+### Derived Roles
+
+Roles computed dynamically from application data.
+
+**Example: Project Leaders**
+
+Automatically grant project_lead role to users leading projects:
 
 ```sql
-CREATE OR REPLACE FUNCTION morbac.eval_project_leads()
-RETURNS TABLE(user_id UUID, org_id UUID)
-LANGUAGE sql STABLE AS $$
-    SELECT user_id, org_id FROM app.projects WHERE lead_user_id IS NOT NULL;
-$$;
+-- Function returns users who are project leaders
+CREATE FUNCTION morbac.eval_project_leads()
+RETURNS TABLE(user_id UUID, org_id UUID) STABLE AS $$
+    SELECT lead_user_id, org_id FROM app.projects WHERE lead_user_id IS NOT NULL;
+$$ LANGUAGE SQL;
 
 INSERT INTO morbac.derived_roles (role_id, org_id, evaluator)
 VALUES (project_lead_role_id, org_id, 'morbac.eval_project_leads'::regproc);
+
+-- Users automatically get project_lead permissions when they lead a project
 ```
 
 ### Cross-Organizational Rules
 
-Inter-organizational access policies:
+Grant access across organization boundaries.
+
+**Example: Corporate Auditor**
+
+Global auditors can review subsidiary financial data:
 
 ```sql
 INSERT INTO morbac.cross_org_rules (
     source_org_id, target_org_id, role_id, activity, view, modality
 ) VALUES (
-    global_org_id, subsidiary_org_id, auditor_role_id,
-    'read', 'financial_reports', 'permission'
+    global_hq_id, subsidiary_id, auditor_role_id, 'read', 'financials', 'permission'
 );
+
+-- Auditor from Global HQ can now access Subsidiary data
+SELECT morbac.is_allowed(auditor_id, subsidiary_id, 'read', 'financials'); -- TRUE
 ```
 
 ### Administration Rules
 
-Meta-policies for policy management:
+Delegate administrative capabilities to specific roles.
+
+**Example: HR Manager**
+
+HR can assign users to roles without being a superuser:
 
 ```sql
-INSERT INTO morbac.admin_rules (org_id, role_id, can_manage_policies)
-VALUES (org_id, sec_admin_role_id, true);
+-- Grant HR the ability to manage user role assignments
+INSERT INTO morbac.admin_rules (org_id, role_id, can_manage_users)
+VALUES (org_id, hr_manager_role_id, true);
 
-SELECT morbac.is_admin_allowed(user_uuid, org_id, 'manage_policies');
+-- Check if HR user can assign roles
+SELECT morbac.is_admin_allowed(hr_user_id, org_id, 'manage_users'); -- TRUE
 ```
 
 ### Temporal Constraints
 
-Rules and cross-organizational rules support optional temporal validity periods. Rules are only active within their specified time window.
+Rules can have time-based validity periods.
 
-**Adding temporal constraints to rules:**
+**Example: Contractor Access**
 
-```sql
--- Rule active only in 2024
-INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, valid_from, valid_until)
-VALUES (org_id, contractor_role_id, 'read', 'projects', ctx_id, 'permission',
-        '2024-01-01 00:00:00+00', '2024-12-31 23:59:59+00');
-
--- Rule active starting from a specific date (no end date)
-INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, valid_from)
-VALUES (org_id, employee_role_id, 'read', 'handbook', ctx_id, 'permission',
-        '2024-06-01 00:00:00+00');
-
--- Rule expires at a specific date
-INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, valid_until)
-VALUES (org_id, temp_role_id, 'write', 'reports', ctx_id, 'permission',
-        '2024-12-31 23:59:59+00');
-```
-
-**Temporal constraints on cross-org rules:**
+Grant contractor access for Q1 2024 only:
 
 ```sql
-INSERT INTO morbac.cross_org_rules (
-    source_org_id, target_org_id, role_id, activity, view, modality,
-    valid_from, valid_until
-) VALUES (
-    parent_org_id, subsidiary_org_id, auditor_role_id,
-    'read', 'financial_data', 'permission',
-    '2024-01-01 00:00:00+00', '2024-03-31 23:59:59+00'
-);
+INSERT INTO morbac.rules (org_id, role_id, activity, view, modality, valid_from, valid_until)
+VALUES (org_id, contractor_role_id, 'read', 'documents', 'permission',
+        '2024-01-01', '2024-03-31');
+
+-- Rule automatically inactive after March 31, 2024
 ```
-
-**Checking rule validity manually:**
-
-```sql
-SELECT morbac.is_rule_valid(valid_from, valid_until);
--- Returns: TRUE if current time is within bounds (or no constraints set)
---          FALSE if outside validity period
-```
-
-**Behavior:**
-- Both `valid_from` and `valid_until` are optional (can be NULL)
-- If both are NULL, rule is always active
-- If only `valid_from` is set, rule is active from that time onwards
-- If only `valid_until` is set, rule is active until that time
-- If both are set, rule is active only during that window
-- `is_allowed()` automatically checks temporal validity for all rules
-- Expired rules are effectively inactive but remain in database for audit purposes
 
 ### Audit Logging
 
