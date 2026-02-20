@@ -22,10 +22,13 @@ A PostgreSQL extension implementing the Multi-OrBAC access control model - enabl
 - Audit logging for security-critical operations
 - Row-level security integration
 
+## Installation
+
 ### Prerequisites
 
 - PostgreSQL 12 or higher
 - `pgcrypto` extension (included with PostgreSQL)
+- Development tools: `make`, `bash`
 
 ### Quick Install
 
@@ -34,16 +37,30 @@ A PostgreSQL extension implementing the Multi-OrBAC access control model - enabl
 git clone https://github.com/yourusername/morbac_pg.git
 cd morbac_pg
 
-# Install extension
-sudo make install
+# Build and install extension
+make build          # Build versioned file from src/
+sudo make install   # Install to PostgreSQL
 
 # Enable in your database
 psql -d mydb -c "CREATE EXTENSION morbac_pg;"
 ```
 
+### Alternative: Using install script
+
+```bash
+# Build first
+make build
+
+# Run installer
+sudo ./tools/install.sh
+```
+
 ### Manual Install
 
 ```bash
+# Build versioned file from source
+make build          # Concatenates src/ files into morbac_pg--1.0.0.sql
+
 # Copy files to PostgreSQL extension directory
 sudo cp morbac_pg.control $(pg_config --sharedir)/extension/
 sudo cp morbac_pg--1.0.0.sql $(pg_config --sharedir)/extension/
@@ -147,22 +164,35 @@ ORDER BY timestamp DESC
 LIMIT 10;
 ```
 
-## Testing
+## Development & Testing
 
 ```bash
-make test              # Run test suite in dedicated database
-make test-db DB=mydb        # Run on existing database
-make cleanup                # Remove test database
+# Development workflow
+# 1. Edit source files in src/ directory
+# 2. Build and test
+make build         # Build versioned morbac_pg--X.Y.Z.sql from src/
+make test          # Build and run test suite
+
+# Manual testing
+make build
+createdb morbac_test
+psql -d morbac_test -f morbac_pg.sql
+# ... test manually ...
+dropdb morbac_test
 ```
+
+See [src/README.md](src/README.md) for source code organization.
 
 ## Documentation
 
 - [DOCUMENTATION.md](docs/DOCUMENTATION.md) - Architecture, API reference, integration guides
 - [PERFORMANCE.md](docs/PERFORMANCE.md) - Performance optimization and caching guide
 - [ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) - Organization administrator setup and delegation
+- [DEVELOPMENT.md](docs/DEVELOPMENT.md) - Development workflow and version management
 - [SECURITY.md](docs/SECURITY.md) - Security policy
 - [CONTRIBUTING.md](docs/CONTRIBUTING.md) - Contribution guidelines
-- [test_morbac.sql](test_morbac.sql) - Test scenarios and examples
+- [src/README.md](src/README.md) - Source code organization
+- [tests/README.md](tests/README.md) - Test structure and setup
 - [CHANGELOG.md](CHANGELOG.md) - Version history
 
 ## Architecture
@@ -186,21 +216,33 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
 ```bash
 git clone https://github.com/yourusername/morbac_pg.git
 cd morbac_pg
-make install
-make test
+
+# Edit source files in src/
+vim src/authorization.sql
+
+# Build and test your changes
+make test          # Run test suite
+
+# When ready to release
+# 1. Update version in morbac_pg.control
+# 2. Build versioned file
+make build         # Creates morbac_pg--X.Y.Z.sql
+# 3. Tag in git
+git tag v1.0.1
+git push --tags
 ```
 
 ## Support
 
-- Read the [documentation](DOCUMENTATION.md)
+- Read the [documentation](docs/DOCUMENTATION.md)
 - Report bugs via [GitHub Issues](https://github.com/yourusername/morbac_pg/issues)
 - Ask questions in [Discussions](https://github.com/yourusername/morbac_pg/discussions)
-- Security issues: see [SECURITY.md](SECURITY.md)
+- Security issues: see [SECURITY.md](docs/SECURITY.md)
 
 ## Comparison with Traditional RBAC
 

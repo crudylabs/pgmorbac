@@ -39,10 +39,36 @@ if [ ! -d "$EXTDIR" ]; then
     exit 1
 fi
 
+# Detect version from control file
+CONTROL_FILE="morbac_pg.control"
+if [ ! -f "$CONTROL_FILE" ]; then
+    echo "Error: $CONTROL_FILE not found"
+    echo "Please run this script from the morbac_pg directory"
+    exit 1
+fi
+
+VERSION=$(grep "default_version" "$CONTROL_FILE" | sed "s/default_version = '\(.*\)'/\1/")
+if [ -z "$VERSION" ]; then
+    echo "Error: Could not detect version from $CONTROL_FILE"
+    exit 1
+fi
+
+SQL_FILE="morbac_pg--${VERSION}.sql"
+
+echo "Detected version: $VERSION"
+echo ""
+
+# Check if versioned SQL file exists
+if [ ! -f "$SQL_FILE" ]; then
+    echo "Error: $SQL_FILE not found"
+    echo "Please run 'make build' first to create the versioned SQL file"
+    exit 1
+fi
+
 # Copy extension files
 echo "Installing extension files..."
 cp -v morbac_pg.control "$EXTDIR/"
-cp -v morbac_pg--1.0.0.sql "$EXTDIR/"
+cp -v "$SQL_FILE" "$EXTDIR/"
 
 echo ""
 echo "=================================="

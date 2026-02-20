@@ -19,27 +19,22 @@ include $(PGXS)
 
 # Custom targets
 
-# Build development SQL from source files
+# Build versioned SQL file from source files
 .PHONY: build
 build:
-	@echo "Building $(DEV_SQL) from source files..."
+	@echo "Building release $(EXTVERSION) from source files..."
 	@./tools/build.sh
-
-# Create versioned release file from development file
-.PHONY: release
-release: build
-	@echo "Preparing release $(EXTVERSION)..."
 	@if [ ! -f $(DEV_SQL) ]; then \
-		echo "Error: $(DEV_SQL) not found"; \
+		echo "Error: Build failed"; \
 		exit 1; \
 	fi
 	cp $(DEV_SQL) $(DATA)
 	@echo "Created $(DATA)"
-	@echo "Ready to commit and tag with: git tag v$(EXTVERSION)"
+	@echo "Ready to install or tag: git tag v$(EXTVERSION)"
 
 # Install extension in PostgreSQL (creates versioned file if needed)
 .PHONY: install
-install: release
+install: build
 	@echo "Installing morbac_pg extension..."
 	$(MAKE) -f Makefile install
 
@@ -67,18 +62,17 @@ help:
 	@echo "Development:"
 	@echo "  Edit source files in src/ directory"
 	@echo ""
-	@echo "  make build        - Build morbac_pg.sql from src/ files"
-	@echo "  make test         - Build and test in temporary database"
-	@echo "  make release      - Build and create versioned file"
-	@echo "  make install      - Build, release, and install extension"
+	@echo "  make build        - Build versioned morbac_pg--X.Y.Z.sql from src/"
+	@echo "  make test         - Build and run test suite"
+	@echo "  make install      - Build and install extension to PostgreSQL"
 	@echo "  make uninstall    - Uninstall extension from PostgreSQL"
 	@echo "  make help         - Show this help"
 	@echo ""
 	@echo "Workflow:"
-	@echo "  1. Edit source files in src/ directory"
-	@echo "  2. make test (build and test your changes)"
+	@echo "  1. Edit source files in src/"
+	@echo "  2. make test (build and test changes)"
 	@echo "  3. Update version in morbac_pg.control"
-	@echo "  4. make release (builds and creates morbac_pg--X.Y.Z.sql)"
+	@echo "  4. make build (builds versioned SQL)"
 	@echo "  5. git tag vX.Y.Z && git push --tags"
 	@echo ""
 	@echo ""
