@@ -194,7 +194,6 @@ Administration meta-policies for delegated management.
 - `can_manage_users`: Can assign/revoke user roles
 
 **Behavior:** Enables organization-scoped administrators without database superuser privileges.
-```
 
 ## Core Concepts
 
