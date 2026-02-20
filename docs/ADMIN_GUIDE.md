@@ -13,19 +13,14 @@ Multi-OrBAC allows you to delegate administrative capabilities to specific roles
 
 ## Administration Rules
 
-The `morbac.admin_rules` table defines what administrative actions specific roles can perform:
+The `morbac.admin_rules` table defines administrative capabilities for specific roles:
 
-```sql
-CREATE TABLE morbac.admin_rules (
-    id UUID PRIMARY KEY,
-    org_id UUID REFERENCES morbac.orgs(id),
-    role_id UUID REFERENCES morbac.roles(id),
-    admin_activity TEXT,     -- 'manage', 'assign_role', etc.
-    admin_target TEXT,        -- 'policies', 'roles', role name, etc.
-    modality morbac.modality, -- 'permission' or 'prohibition'
-    context_id UUID REFERENCES morbac.contexts(id)
-);
-```
+**Key columns:**
+- `org_id`, `role_id`: Role receiving capabilities
+- `admin_activity`: Action type (e.g., 'manage', 'assign_role')
+- `admin_target`: Target type (e.g., 'policies', 'roles', specific role name, '*' for wildcard)
+- `modality`: Permission or prohibition
+- `context_id`: Optional conditional evaluation
 
 ## Common Admin Patterns
 
@@ -375,9 +370,9 @@ SELECT morbac.admin_assign_role(
 
 Multi-OrBAC provides complete delegation of administrative capabilities:
 
-- **No superadmins needed** for day-to-day operations
-- **Organization-scoped** - admins only affect their own org
-- **Fine-grained** - control exactly what each admin role can do
-- **Safe** - automatic constraint validation (SoD, cardinality)
-- **Auditable** - all actions go through tracked functions
-- **Context-aware** - limit when admin actions can occur
+- **No superadmins needed**: for day-to-day operations
+- **Organization-scoped**: admins only affect their own org
+- **Fine-grained**: control exactly what each admin role can do
+- **Safe**: automatic constraint validation (SoD, cardinality)
+- **Auditable**: all actions go through tracked functions
+- **Context-aware**: limit when admin actions can occur

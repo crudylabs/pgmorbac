@@ -146,9 +146,9 @@ VALUES (org_id, role_id, 'write', 'sensitive_data', ctx_id, 'permission',
 INSERT INTO morbac.delegations (delegator_user_id, delegate_user_id, role_id, org_id, valid_until)
 VALUES (alice_id, bob_id, role_id, org_id, NOW() + INTERVAL '7 days');
 
--- Separation of Duty: Preparer and approver are mutually exclusive
+-- Separation of Duty: Invoice creator and approver roles are mutually exclusive
 INSERT INTO morbac.sod_conflicts (role1_id, role2_id, org_id)
-VALUES (preparer_role_id, approver_role_id, org_id);
+VALUES (creator_role_id, approver_role_id, org_id);
 
 -- Cross-Org: Global auditor can access subsidiary
 INSERT INTO morbac.cross_org_rules (source_org_id, target_org_id, role_id, activity, view, modality)
@@ -185,15 +185,13 @@ See [src/README.md](src/README.md) for source code organization.
 
 ## Documentation
 
-- [DOCUMENTATION.md](docs/DOCUMENTATION.md) - Architecture, API reference, integration guides
-- [PERFORMANCE.md](docs/PERFORMANCE.md) - Performance optimization and caching guide
-- [ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md) - Organization administrator setup and delegation
-- [DEVELOPMENT.md](docs/DEVELOPMENT.md) - Development workflow and version management
-- [SECURITY.md](docs/SECURITY.md) - Security policy
-- [CONTRIBUTING.md](docs/CONTRIBUTING.md) - Contribution guidelines
-- [src/README.md](src/README.md) - Source code organization
-- [tests/README.md](tests/README.md) - Test structure and setup
-- [CHANGELOG.md](CHANGELOG.md) - Version history
+- [DOCUMENTATION.md](docs/DOCUMENTATION.md): Architecture, API reference, integration guides
+- [PERFORMANCE.md](docs/PERFORMANCE.md): Performance optimization and caching guide
+- [ADMIN_GUIDE.md](docs/ADMIN_GUIDE.md): Organization administrator setup and delegation
+- [DEVELOPMENT.md](docs/DEVELOPMENT.md): Development workflow and version management
+- [SECURITY.md](SECURITY.md): Security policy
+- [CONTRIBUTING.md](CONTRIBUTING.md): Contribution guidelines
+- [CHANGELOG.md](CHANGELOG.md): Version history
 
 ## Architecture
 
@@ -201,8 +199,8 @@ Authorization decision flow:
 
 1. Collect all roles for user (direct, delegated, derived, hierarchy)
 2. Filter out negative role assignments
-3. Check for prohibitions - if found, deny access
-4. Check for permissions - if found, allow access
+3. Check for prohibitions: if found, deny access
+4. Check for permissions: if found, allow access
 5. Default deny
 
 Prohibitions always override permissions.
@@ -216,7 +214,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contributing
 
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
 git clone https://github.com/yourusername/pg_morbac.git
@@ -242,16 +240,16 @@ git push --tags
 - Read the [documentation](docs/DOCUMENTATION.md)
 - Report bugs via [GitHub Issues](https://github.com/yourusername/pg_morbac/issues)
 - Ask questions in [Discussions](https://github.com/yourusername/pg_morbac/discussions)
-- Security issues: see [SECURITY.md](docs/SECURITY.md)
+- Security issues: see [SECURITY.md](SECURITY.md)
 
 ## Comparison with Traditional RBAC
 
-| Feature | Traditional RBAC | pg_morbac |
-|---------|-----------------|-----------|
-| Multi-tenancy | No | Yes |
-| Prohibitions | No | Yes |
-| Context-aware | No | Yes |
-| Hierarchies | Basic roles only | Organizations, roles, activities, views |
-| Delegation | No | Yes |
-| Separation of Duty | No | Yes |
-| Cross-organization | No | Yes |
+| Feature | Traditional RBAC | Traditional OrBAC | pg_morbac (Multi-OrBAC) |
+|---------|-----------------|-------------------|-------------------------|
+| Multi-tenancy | No | Single organization | Multi-organization |
+| Prohibitions | No | Yes | Yes |
+| Context-aware | No | Yes | Yes |
+| Hierarchies | Basic roles only | Roles, activities, views | Organizations, roles, activities, views |
+| Delegation | No | Yes | Yes (temporal) |
+| Separation of Duty | No | Possible | Database-enforced |
+| Cross-organization | No | No | Yes |

@@ -6,11 +6,11 @@ This guide explains the performance optimizations built into pg_morbac and how t
 
 pg_morbac includes several layers of optimization:
 
-1. **Materialized Views** - Precomputed hierarchy transitive closures
-2. **Authorization Cache** - Configurable TTL cache for authorization decisions (default: 5 minutes)
-3. **Composite Indexes** - Optimized indexes for common query patterns
-4. **Partial Indexes** - Indexes only on active (temporally valid) rules
-5. **Configurable Settings** - All magic numbers centralized in morbac.config table
+1. **Materialized Views**: Precomputed hierarchy transitive closures
+2. **Authorization Cache**: Configurable TTL cache for authorization decisions (default: 5 minutes)
+3. **Composite Indexes**: Optimized indexes for common query patterns
+4. **Partial Indexes**: Indexes only on active (temporally valid) rules
+5. **Configurable Settings**: All magic numbers centralized in morbac.config table
 
 ## Initial Setup
 
@@ -42,9 +42,9 @@ SELECT morbac.refresh_hierarchy_cache();
 ```
 
 **Available configuration keys:**
-- `cache_ttl_seconds` - Authorization cache TTL in seconds (default: 300)
-- `hierarchy_max_depth` - Maximum hierarchy depth to prevent infinite loops (default: 10)
-- `enable_audit_by_default` - Whether to enable audit logging on installation (default: false)
+- `cache_ttl_seconds`: Authorization cache TTL in seconds (default: 300)
+- `hierarchy_max_depth`: Maximum hierarchy depth to prevent infinite loops (default: 10)
+- `enable_audit_by_default`: Whether to enable audit logging on installation (default: false)
 
 ## Using Cached Authorization
 

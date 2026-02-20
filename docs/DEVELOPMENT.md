@@ -25,7 +25,7 @@ When ready to release a new version:
 
 2. **Create release**: Run `make release`
    - Reads version from `.control` file
-   - Copies `pg_morbac.sql` → `pg_morbac--X.Y.Z.sql`
+   - Copies `pg_morbac.sql` to `pg_morbac--X.Y.Z.sql`
 
 3. **Test**: Run `make test` with the versioned file
 
@@ -49,12 +49,12 @@ These contain only the ALTER/ADD statements needed for the upgrade.
 
 ## Make Targets
 
-- `make test` - Test with development file (temporary database)
-- `make test` - Full test with persistent database
-- `make release` - Generate versioned file from development file
-- `make install` - Create release and install in PostgreSQL
-- `make cleanup` - Drop test database
-- `make help` - Show all targets
+- `make test`: Test with development file (temporary database)
+- `make test`: Full test with persistent database
+- `make release`: Generate versioned file from development file
+- `make install`: Create release and install in PostgreSQL
+- `make cleanup`: Drop test database
+- `make help`: Show all targets
 
 ## Benefits
 

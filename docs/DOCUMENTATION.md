@@ -19,12 +19,12 @@ Complete technical documentation for the Multi-OrBAC PostgreSQL extension.
 
 pg_morbac is built on these principles:
 
-1. **Pure PostgreSQL** - No external dependencies (except pgcrypto)
-2. **Schema Isolation** - All objects in `morbac` schema
-3. **Default Deny** - No permission = access denied
-4. **Prohibition Precedence** - Prohibitions checked first, always override permissions
-5. **Organization-Centric** - All policies scoped to organizations
-6. **Multi-Tenant Native** - Users and resources can span organizations
+1. **Pure PostgreSQL**: No external dependencies (except pgcrypto)
+2. **Schema Isolation**: All objects in `morbac` schema
+3. **Default Deny**: No permission = access denied
+4. **Prohibition Precedence**: Prohibitions checked first, always override permissions
+5. **Organization-Centric**: All policies scoped to organizations
+6. **Multi-Tenant Native**: Users and resources can span organizations
 
 ### Authorization Flow
 
@@ -92,160 +92,108 @@ erDiagram
 
 ### Core Tables
 
-**morbac.orgs** - Organizations with hierarchy support (`parent_id` self-reference). Unique name required. Supports metadata as JSONB.
+**morbac.orgs**: Organizations with hierarchy support (`parent_id` self-reference). Unique name required. Supports metadata as JSONB.
 
-**morbac.roles** - Roles scoped to organizations. Unique `(org_id, name)` constraint ensures role names are unique within each org.
+**morbac.roles**: Roles scoped to organizations. Unique `(org_id, name)` constraint ensures role names are unique within each org.
 
-**morbac.role_hierarchy** - Role inheritance via `(senior_role_id, junior_role_id)`. Senior roles inherit all junior permissions. Supports transitive closure.
+**morbac.role_hierarchy**: Role inheritance via `(senior_role_id, junior_role_id)`. Senior roles inherit all junior permissions. Supports transitive closure.
 
-**morbac.user_roles** - Direct user-to-role assignments. Primary key on `(user_id, role_id, org_id)`. Note: `user_id` is external (application manages users).
+**morbac.user_roles**: Direct user-to-role assignments. Primary key on `(user_id, role_id, org_id)`. Note: `user_id` is external (application manages users).
 
-**morbac.activities** - Abstract actions (global scope). Text primary key. Examples: `read`, `write`, `delete`, `approve`.
+**morbac.activities**: Abstract actions (global scope). Text primary key. Examples: `read`, `write`, `delete`, `approve`.
 
-**morbac.activity_hierarchy** - Activity inheritance via `(parent_activity, child_activity)`. Permission to parent grants child activities.
+**morbac.activity_hierarchy**: Activity inheritance via `(parent_activity, child_activity)`. Permission to parent grants child activities.
 
-**morbac.views** - Abstract object categories (global scope). Text primary key. Examples: `documents`, `reports`, `financial_data`.
+**morbac.views**: Abstract object categories (global scope). Text primary key. Examples: `documents`, `reports`, `financial_data`.
 
-**morbac.view_hierarchy** - View inheritance via `(parent_view, child_view)`. Access to parent grants child views.
+**morbac.view_hierarchy**: View inheritance via `(parent_view, child_view)`. Access to parent grants child views.
 
-**morbac.contexts** - Contextual conditions as callable predicates. Column `evaluator` (REGPROC) references a function returning BOOLEAN (preferably STABLE). Built-in context `always` returns true.
+**morbac.contexts**: Contextual conditions as callable predicates. Column `evaluator` (REGPROC) references a function returning BOOLEAN (preferably STABLE). Built-in context `always` returns true.
 
-**morbac.rules** - Core policy rules linking org, role, activity, view, context, and modality. Indexed on `(org_id, role_id, activity, view, modality)` for fast lookups.
+**morbac.rules**: Core policy rules linking org, role, activity, view, context, and modality. Indexed on `(org_id, role_id, activity, view, modality)` for fast lookups.
 
-**morbac.policy** - Policy DSL using names instead of UUIDs. Insert here, then call `compile_policy()` to generate rules.
+**morbac.policy**: Policy DSL using names instead of UUIDs. Insert here, then call `compile_policy()` to generate rules.
 
 ### Advanced Feature Tables
 
-#### morbac.delegations
+**morbac.delegations**
 
-Temporal role delegation.
+Temporal role delegation with time bounds.
 
-```sql
-CREATE TABLE morbac.delegations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    delegator_user_id UUID NOT NULL,
-    delegate_user_id UUID NOT NULL,
-    role_id UUID NOT NULL REFERENCES morbac.roles(id) ON DELETE CASCADE,
-    org_id UUID NOT NULL REFERENCES morbac.orgs(id) ON DELETE CASCADE,
-    valid_from TIMESTAMPTZ NOT NULL DEFAULT now(),
-    valid_until TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CHECK (valid_until IS NULL OR valid_until > valid_from)
-);
-```
+**Key columns:**
+- `delegator_user_id`: User granting the role
+- `delegate_user_id`: User receiving the role
+- `role_id`, `org_id`: Role being delegated
+- `valid_from`, `valid_until`: Time window (NULL = indefinite)
 
-**Columns:**
-- `valid_from` - Delegation start time
-- `valid_until` - Optional end time (NULL = indefinite)
+**Behavior:** Automatically included in `get_comprehensive_roles()` when active.
 
-**Automatic handling:** Included in `get_comprehensive_roles()` when active.
+**morbac.negative_role_assignments**
 
-#### morbac.negative_role_assignments
+Explicit role prohibitions with highest precedence.
 
-Explicit role prohibitions.
+**Key columns:**
+- `user_id`, `role_id`, `org_id`: Assignment to prohibit
+- `reason`: Explanation for prohibition
 
-```sql
-CREATE TABLE morbac.negative_role_assignments (
-    user_id UUID NOT NULL,
-    role_id UUID NOT NULL REFERENCES morbac.roles(id) ON DELETE CASCADE,
-    org_id UUID NOT NULL REFERENCES morbac.orgs(id) ON DELETE CASCADE,
-    reason TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (user_id, role_id, org_id)
-);
-```
+**Behavior:** Overrides direct assignments, delegations, and derived roles.
 
-**Precedence:** Overrides direct assignments, delegations, and derived roles.
+**morbac.sod_conflicts**
 
-#### morbac.sod_conflicts
+Separation of Duty constraints enforce mutually exclusive roles.
 
-Separation of Duty constraints.
+**Key columns:**
+- `role1_id`, `role2_id`: Conflicting role pair
+- `org_id`: Organization scope
+- `description`: Explanation of conflict
 
-```sql
-CREATE TABLE morbac.sod_conflicts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    role1_id UUID NOT NULL REFERENCES morbac.roles(id) ON DELETE CASCADE,
-    role2_id UUID NOT NULL REFERENCES morbac.roles(id) ON DELETE CASCADE,
-    org_id UUID NOT NULL REFERENCES morbac.orgs(id) ON DELETE CASCADE,
-    description TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(role1_id, role2_id, org_id),
-    CHECK (role1_id < role2_id)
-);
-```
+**Behavior:** Prevents users from holding both roles simultaneously. Validated via `check_sod_violation()` before role assignment.
 
-**Usage:** Validated via `check_sod_violation()` before role assignment.
+**morbac.role_cardinality**
 
-#### morbac.role_cardinality
+Constrains the number of users per role.
 
-Min/max users per role.
+**Key columns:**
+- `role_id`, `org_id`: Role to constrain
+- `min_users`: Minimum required users (default 0)
+- `max_users`: Maximum allowed users (NULL = unlimited)
 
-```sql
-CREATE TABLE morbac.role_cardinality (
-    role_id UUID PRIMARY KEY REFERENCES morbac.roles(id) ON DELETE CASCADE,
-    org_id UUID NOT NULL REFERENCES morbac.orgs(id) ON DELETE CASCADE,
-    min_users INTEGER NOT NULL DEFAULT 0,
-    max_users INTEGER,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CHECK (min_users >= 0),
-    CHECK (max_users IS NULL OR max_users >= min_users)
-);
-```
+**Behavior:** Validated via `check_cardinality_violation()` before role assignment.
 
-**Usage:** Validated via `check_cardinality_violation()`.
+**morbac.derived_roles**
 
-#### morbac.derived_roles
+Dynamically computed roles via custom functions.
 
-Dynamically computed roles.
+**Key columns:**
+- `role_id`, `org_id`: Role to compute
+- `evaluator`: Function returning `TABLE(user_id UUID, org_id UUID)`
+- `description`: Explanation of computation logic
 
-```sql
-CREATE TABLE morbac.derived_roles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    role_id UUID NOT NULL REFERENCES morbac.roles(id) ON DELETE CASCADE,
-    org_id UUID NOT NULL REFERENCES morbac.orgs(id) ON DELETE CASCADE,
-    evaluator REGPROC NOT NULL,
-    description TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
+**Behavior:** Function is called at runtime to determine role membership. Included in `get_comprehensive_roles()`.
 
-**Columns:**
-- `evaluator` - Function returning `TABLE(user_id UUID, org_id UUID)`
+**morbac.cross_org_rules**
 
-#### morbac.cross_org_rules
+Inter-organizational access policies.
 
-Inter-organizational rules.
+**Key columns:**
+- `source_org_id`: Organization where role is held
+- `target_org_id`: Organization where access is granted
+- `role_id`, `activity`, `view`: Policy specification
+- `modality`: Permission or prohibition
 
-```sql
-CREATE TABLE morbac.cross_org_rules (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    source_org_id UUID NOT NULL REFERENCES morbac.orgs(id) ON DELETE CASCADE,
-    target_org_id UUID NOT NULL REFERENCES morbac.orgs(id) ON DELETE CASCADE,
-    role_id UUID NOT NULL REFERENCES morbac.roles(id) ON DELETE CASCADE,
-    activity TEXT NOT NULL REFERENCES morbac.activities(name) ON DELETE CASCADE,
-    view TEXT NOT NULL REFERENCES morbac.views(name) ON DELETE CASCADE,
-    modality morbac.modality NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
+**Behavior:** Allows roles in source organization to access resources in target organization.
 
-**Usage:** Allows roles in `source_org` to access resources in `target_org`.
+**morbac.admin_rules**
 
-#### morbac.admin_rules
+Administration meta-policies for delegated management.
 
-Administration meta-policies.
+**Key columns:**
+- `org_id`, `role_id`: Role receiving admin capabilities
+- `can_manage_policies`: Can create/modify policies
+- `can_manage_roles`: Can create/modify roles
+- `can_manage_users`: Can assign/revoke user roles
 
-```sql
-CREATE TABLE morbac.admin_rules (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    org_id UUID NOT NULL REFERENCES morbac.orgs(id) ON DELETE CASCADE,
-    role_id UUID NOT NULL REFERENCES morbac.roles(id) ON DELETE CASCADE,
-    can_manage_policies BOOLEAN NOT NULL DEFAULT false,
-    can_manage_roles BOOLEAN NOT NULL DEFAULT false,
-    can_manage_users BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(org_id, role_id)
-);
+**Behavior:** Enables organization-scoped administrators without database superuser privileges.
 ```
 
 ## Core Concepts
@@ -254,10 +202,10 @@ CREATE TABLE morbac.admin_rules (
 
 Multi-OrBAC implements four modalities:
 
-1. **Permission** - Allows action (if no prohibition)
-2. **Prohibition** - Denies action (always wins)
-3. **Obligation** - Must be done (informational only)
-4. **Recommendation** - Should be done (informational only)
+1. **Permission**: Allows action (if no prohibition)
+2. **Prohibition**: Denies action (always wins)
+3. **Obligation**: Must be done (informational only)
+4. **Recommendation**: Should be done (informational only)
 
 Only permissions and prohibitions affect `is_allowed()` decisions.
 
@@ -373,41 +321,42 @@ VALUES (user_uuid, admin_role_id, org_id, 'Security audit requirement');
 
 ### Separation of Duty
 
-Mutually exclusive role constraints:
+Prevents users from holding conflicting roles that could enable fraud or abuse.
+
+**Example: Financial Controls**
+
+In an accounting system, the same person should not both create and approve invoices:
 
 ```sql
-INSERT INTO morbac.sod_conflicts (role1_id, role2_id, org_id, description)
-VALUES (preparer_role_id, approver_role_id, org_id, 'Cannot prepare and approve same transaction');
+-- Create roles
+INSERT INTO morbac.roles (org_id, name) VALUES
+    (org_id, 'invoice_creator'),
+    (org_id, 'invoice_approver');
 
-SELECT morbac.check_sod_violation(user_uuid, org_id);
+-- Define conflict
+INSERT INTO morbac.sod_conflicts (role1_id, role2_id, org_id, description)
+VALUES (creator_role_id, approver_role_id, org_id, 'Financial controls: prevent self-approval');
+
+-- Check before assignment
+SELECT morbac.check_sod_violation(alice_uuid, org_id);
+-- Returns: empty array if valid, or ['invoice_creator', 'invoice_approver'] if conflict exists
 ```
+
+If Alice already has the `invoice_creator` role, attempting to assign `invoice_approver` will violate the constraint.
 
 ### Cardinality Constraints
 
-Min/max users per role:
+Enforce minimum and maximum users per role:
 
 ```sql
+-- Require 1-3 administrators
 INSERT INTO morbac.role_cardinality (role_id, org_id, min_users, max_users)
 VALUES (admin_role_id, org_id, 1, 3);
 
+-- Validate before assignment
 SELECT morbac.check_cardinality_violation(admin_role_id, org_id);
+-- Returns: error message if constraint violated, NULL if valid
 ```
-Check before INSERT INTO user_roles
-```sql
--- Require 1-3 admins
-INSERT INTO morbac.role_cardinality (role_id, org_id, min_users, max_users)
-VALUES (admin_role_id, org_id, 1, 3);
-
--- Validate
-SELECT morbac.check_cardinality_violation(admin_role_id, org_id);
--- Returns: TEXT (error message) or NULL (valid)
-```
-
-### Derived Roles
-
-```sql
--- Define evaluator
-### Derived Roles
 
 Dynamically computed roles via custom functions:
 
@@ -591,55 +540,55 @@ WHERE table_name = 'rules'
 
 ### Authorization Functions
 
-**`is_allowed(user_id, org_id, activity, view)`** - Main authorization decision. Returns BOOLEAN. Checks prohibitions first, then permissions, defaults to deny.
+**`is_allowed(user_id, org_id, activity, view)`**: Main authorization decision. Returns BOOLEAN. Checks prohibitions first, then permissions, defaults to deny.
 
 ```sql
 SELECT morbac.is_allowed(user_uuid, org_uuid, 'read', 'documents');
 ```
 
-**`get_comprehensive_roles(user_id, org_id)`** - Returns all roles for user (direct, delegated, derived, hierarchy, minus negative assignments).
+**`get_comprehensive_roles(user_id, org_id)`**: Returns all roles for user (direct, delegated, derived, hierarchy, minus negative assignments).
 
-**`get_effective_roles(user_id, org_id)`** - Alias for `get_comprehensive_roles()`.
+**`get_effective_roles(user_id, org_id)`**: Alias for `get_comprehensive_roles()`.
 
 ### Hierarchy Functions
 
-**`get_org_ancestors(org_id)`** - Returns all parent organizations with depth.
+**`get_org_ancestors(org_id)`**: Returns all parent organizations with depth.
 
-**`get_org_descendants(org_id)`** - Returns all child organizations with depth.
+**`get_org_descendants(org_id)`**: Returns all child organizations with depth.
 
-**`get_inherited_roles(role_id)`** - Returns all junior roles (transitive).
+**`get_inherited_roles(role_id)`**: Returns all junior roles (transitive).
 
-**`get_effective_activities(activity)`** - Returns activity plus all child activities.
+**`get_effective_activities(activity)`**: Returns activity plus all child activities.
 
-**`get_effective_views(view)`** - Returns view plus all child views.
+**`get_effective_views(view)`**: Returns view plus all child views.
 
 ### Validation Functions
 
-**`check_sod_violation(user_id, org_id)`** - Returns TEXT[] of conflicting role pairs or empty array.
+**`check_sod_violation(user_id, org_id)`**: Returns empty array if valid, or array of conflicting role name pairs if violations exist.
 
-**`check_cardinality_violation(role_id, org_id)`** - Returns error message or NULL if valid.
+**`check_cardinality_violation(role_id, org_id)`**: Returns error message if constraint violated, NULL if valid.
 
 ### Administration Functions
 
-**`is_admin_allowed(user_id, org_id, capability)`** - Check administrative permissions. Capabilities: `manage_policies`, `manage_roles`, `manage_users`.
+**`is_admin_allowed(user_id, org_id, capability)`**: Check administrative permissions. Capabilities: `manage_policies`, `manage_roles`, `manage_users`.
 
-**`eval_derived_role(user_id, org_id, derived_role_id)`** - Evaluate if user has derived role.
+**`eval_derived_role(user_id, org_id, derived_role_id)`**: Evaluate if user has derived role.
 
 ### Context Functions
 
-**`eval_context(context_id)`** - Evaluate a context predicate.
+**`eval_context(context_id)`**: Evaluate a context predicate.
 
 ### Policy DSL Functions
 
-**`compile_policy()`** - Compile policy DSL into rules. Returns TABLE with success status and messages. Idempotent.
+**`compile_policy()`**: Compile policy DSL into rules. Returns TABLE with success status and messages. Idempotent.
 
 ### RLS Helper Functions
 
-**`current_user_id()`** - Get user ID from `request.header.x-user-id` (PostgREST) or `current_setting('morbac.user_id')`.
+**`current_user_id()`**: Get user ID from `request.header.x-user-id` (PostgREST) or `current_setting('morbac.user_id')`.
 
-**`current_org_id()`** - Get org ID from `request.header.x-org-id` (PostgREST) or `current_setting('morbac.org_id')`.
+**`current_org_id()`**: Get org ID from `request.header.x-org-id` (PostgREST) or `current_setting('morbac.org_id')`.
 
-**`rls_check(activity, view)`** - Authorization check for RLS policies using current user/org context.
+**`rls_check(activity, view)`**: Authorization check for RLS policies using current user/org context.
 
 ```sql
 CREATE POLICY my_policy ON app.table
@@ -648,11 +597,11 @@ FOR SELECT USING (morbac.rls_check('read', 'documents'));
 
 ### Informational Functions
 
-**`pending_obligations(user_id, org_id)`** - Returns obligations for user (informational only).
+**`pending_obligations(user_id, org_id)`**: Returns obligations for user (informational only).
 
-**`pending_recommendations(user_id, org_id)`** - Returns recommendations for user (informational only).
+**`pending_recommendations(user_id, org_id)`**: Returns recommendations for user (informational only).
 
-**`user_has_role(user_id, org_id, role_name)`** - Check if user has specific role by name.
+**`user_has_role(user_id, org_id, role_name)`**: Check if user has specific role by name.
 
 ```sql
 morbac.user_has_role(
@@ -666,9 +615,7 @@ morbac.user_has_role(
 
 ### PostgREST Integration
 
-#### 1. Setup Headers
-
-Configure PostgREST to pass user/org context:
+Configure PostgREST to pass user/org context via headers:
 
 ```nginx
 # Nginx config
@@ -676,18 +623,17 @@ proxy_set_header X-User-Id $user_id;
 proxy_set_header X-Org-Id $org_id;
 ```
 
-#### 2. Enable RLS
+Enable RLS and grant permissions:
 
 ```sql
 ALTER TABLE app.documents ENABLE ROW LEVEL SECURITY;
 
--- Grant usage to PostgREST role
 GRANT USAGE ON SCHEMA morbac TO postgrest_role;
 GRANT SELECT ON ALL TABLES IN SCHEMA morbac TO postgrest_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA morbac TO postgrest_role;
 ```
 
-#### 3. Create RLS Policies
+Create RLS policies:
 
 ```sql
 CREATE POLICY document_read ON app.documents
@@ -699,35 +645,11 @@ FOR INSERT
 WITH CHECK (morbac.rls_check('write', 'documents'));
 ```
 
-#### 4. Set Context (alternative to headers)
+Alternative method using session variables:
 
 ```sql
--- In application connection
 SET morbac.user_id = '123e4567-e89b-12d3-a456-426614174000';
 SET morbac.org_id = '987fcdeb-51a2-43d7-9c6e-5a8b7c9d0e1f';
-```
-
-## Integration Guides
-
-### PostgREST Integration
-
-Configure PostgREST to pass headers, enable RLS, and create policies:
-
-```sql
--- Enable RLS
-ALTER TABLE app.documents ENABLE ROW LEVEL SECURITY;
-
-GRANT USAGE ON SCHEMA morbac TO postgrest_role;
-GRANT SELECT ON ALL TABLES IN SCHEMA morbac TO postgrest_role;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA morbac TO postgrest_role;
-
--- Create RLS policies
-CREATE POLICY document_read ON app.documents
-FOR SELECT USING (morbac.rls_check('read', 'documents'));
-
--- Alternative: Set context directly
-SET morbac.user_id = '123e4567...';
-SET morbac.org_id = '987fcdeb...';
 ```
 
 ### Application Integration
@@ -754,19 +676,17 @@ const res = await client.query('SELECT * FROM app.documents');
 
 ### Multi-Organization Resources
 
-Resources can belong to multiple organizations:
+Resources can belong to multiple organizations using a junction table:
 
 ```sql
-CREATE TABLE app.document_orgs (
-    document_id UUID,
-    org_id UUID,
-    PRIMARY KEY (document_id, org_id)
-);
-
+-- Application defines document-org relationships
+-- morbac.rls_check() enforces access rules
 CREATE POLICY doc_access ON app.documents FOR SELECT USING (
-    EXISTS (SELECT 1 FROM app.document_orgs
-            WHERE document_id = app.documents.id
-              AND org_id = morbac.current_org_id())
+    EXISTS (
+        SELECT 1 FROM app.document_orgs
+        WHERE document_id = app.documents.id
+          AND org_id = morbac.current_org_id()
+    )
     AND morbac.rls_check('read', 'documents')
 );
 ```
@@ -792,12 +712,6 @@ Context optimization:
 - Keep context logic simple
 
 All foreign keys are indexed. Critical composite indexes exist on `(user_id, org_id)` and `(org_id, role_id, activity, view, modality)`.
-CREATE INDEX idx_rules_lookup ON morbac.rules(org_id, role_id, activity, view, modality);
-
--- Hierarchy traversal
-CREATE INDEX idx_role_hierarchy_senior ON morbac.role_hierarchy(senior_role_id);
-CREATE INDEX idx_role_hierarchy_junior ON morbac.role_hierarchy(junior_role_id);
-```
 
 ### Benchmarking
 
@@ -837,7 +751,7 @@ Not protected against:
 
 ### Security Best Practices
 
-#### 1. Context Function Security
+**Context Function Security**
 
 ```sql
 -- BAD: Leaks information
@@ -853,7 +767,7 @@ RETURNS BOOLEAN STABLE AS $$
 $$;
 ```
 
-#### 2. User ID Validation
+**User ID Validation**
 
 ```sql
 -- Validate user exists before authorization
@@ -865,25 +779,13 @@ SELECT morbac.is_allowed(
 );
 ```
 
-#### 3. Org Context Validation
+**Org Context Validation**
 
 ```sql
 -- Verify user belongs to org
 SELECT EXISTS(
     SELECT 1 FROM morbac.user_roles
     WHERE user_id = ? AND org_id = ?
-);
-```
-
-#### 4. Delegation Auditing
-
-```sql
--- Log delegations
-CREATE TABLE app.delegation_audit (
-    delegation_id UUID REFERENCES morbac.delegations(id),
-    action TEXT,
-    by_user UUID,
-    at_time TIMESTAMPTZ DEFAULT now()
 );
 ```
 
@@ -905,7 +807,7 @@ CREATE TABLE app.delegation_audit (
 ## Additional Resources
 
 - [Multi-OrBAC Research Paper](https://webhost.laas.fr/TSF/deswarte/Publications/06427.pdf)
-- [test_morbac.sql](test_morbac.sql) - Comprehensive examples
-- [CHANGELOG.md](CHANGELOG.md) - Version history
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
-- [SECURITY.md](SECURITY.md) - Security policy
+- [test_morbac.sql](test_morbac.sql): Comprehensive examples
+- [CHANGELOG.md](CHANGELOG.md): Version history
+- [CONTRIBUTING.md](CONTRIBUTING.md): Contribution guidelines
+- [SECURITY.md](SECURITY.md): Security policy
