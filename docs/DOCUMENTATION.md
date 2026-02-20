@@ -850,7 +850,3 @@ SELECT EXISTS(
 ## Additional Resources
 
 - [Multi-OrBAC Research Paper](https://webhost.laas.fr/TSF/deswarte/Publications/06427.pdf)
-- [test_morbac.sql](test_morbac.sql): Comprehensive examples
-- [CHANGELOG.md](CHANGELOG.md): Version history
-- [CONTRIBUTING.md](CONTRIBUTING.md): Contribution guidelines
-- [SECURITY.md](SECURITY.md): Security policy
