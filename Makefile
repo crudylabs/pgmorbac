@@ -46,28 +46,28 @@ install: build
 # Start PostgreSQL Docker container
 .PHONY: docker-start
 docker-start:
-	@./tools/start_docker.sh $(DOCKER_CONTAINER) $(DOCKER_PORT)
+	@./tools/docker_start.sh $(DOCKER_CONTAINER) $(DOCKER_PORT)
 
 # Stop PostgreSQL Docker container
 .PHONY: docker-stop
 docker-stop:
-	@./tools/stop_docker.sh $(DOCKER_CONTAINER)
+	@./tools/docker_stop.sh $(DOCKER_CONTAINER)
 
 # Remove PostgreSQL Docker container
 .PHONY: docker-clean
 docker-clean:
-	@./tools/clean_docker.sh $(DOCKER_CONTAINER)
+	@./tools/docker_clean.sh $(DOCKER_CONTAINER)
 
 # Build and install extension in Docker container
 .PHONY: docker-install
 docker-install: build docker-start
 	@cp $(OUTPUT_DEV_FILENAME) $(OUTPUT_RELEASE_FILENAME)
-	@./tools/install_docker.sh $(DOCKER_CONTAINER) $(PROJECT_FILENAME) $(PROJECT_VERSION)
+	@./tools/docker_install.sh $(DOCKER_CONTAINER) $(PROJECT_FILENAME) $(PROJECT_VERSION)
 
 # Uninstall extension from Docker container
 .PHONY: docker-uninstall
 docker-uninstall:
-	@./tools/uninstall_docker.sh $(DOCKER_CONTAINER) $(PROJECT_FILENAME)
+	@./tools/docker_uninstall.sh $(DOCKER_CONTAINER) $(PROJECT_FILENAME)
 
 .PHONY: test
 test: build
@@ -79,7 +79,7 @@ test: build
 # Build and run tests in Docker container
 .PHONY: docker-test
 docker-test: build docker-start
-	@./tools/test_docker.sh $(DOCKER_CONTAINER) morbac_test $(OUTPUT_DEV_FILENAME)
+	@./tools/docker_test.sh $(DOCKER_CONTAINER) morbac_test $(OUTPUT_DEV_FILENAME)
 
 # Uninstall extension from PostgreSQL
 .PHONY: uninstall

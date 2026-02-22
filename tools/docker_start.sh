@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# start_docker.sh - Start a PostgreSQL Docker container
-# Usage: ./start_docker.sh [container_name] [port]
+# docker_start.sh - Start a PostgreSQL Docker container
+# Usage: ./docker_start.sh [container_name] [port]
 
 set -e # Exit immediately if a command exits with a non-zero status
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# uninstall_docker.sh - Uninstall the PostgreSQL extension from a Docker container
-# Usage: ./uninstall_docker.sh [container_name] [project_name]
+# docker_uninstall.sh - Uninstall the PostgreSQL extension from a Docker container
+# Usage: ./docker_uninstall.sh [container_name] [project_name]
 
 set -e # Exit immediately if a command exits with a non-zero status
 

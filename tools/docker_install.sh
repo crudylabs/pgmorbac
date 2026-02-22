@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# install_docker.sh - Install the PostgreSQL extension to a Docker container
-# Usage: ./install_docker.sh [container_name] [project_name] [version]
+# docker_install.sh - Install the PostgreSQL extension to a Docker container
+# Usage: ./docker_install.sh [container_name] [project_name] [version]
 
 set -e # Exit immediately if a command exits with a non-zero status
 

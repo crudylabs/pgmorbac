@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# test_docker.sh - Run tests in a Docker container
-# Usage: ./test_docker.sh [container_name] [database_name] [sql_file]
+# docker_test.sh - Run tests in a Docker container
+# Usage: ./docker_test.sh [container_name] [database_name] [sql_file]
 
 set -e # Exit immediately if a command exits with a non-zero status
 

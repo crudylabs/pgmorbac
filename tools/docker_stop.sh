@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# stop_docker.sh - Stop a PostgreSQL Docker container
-# Usage: ./stop_docker.sh [container_name]
+# docker_stop.sh - Stop a PostgreSQL Docker container
+# Usage: ./docker_stop.sh [container_name]
 
 set -e # Exit immediately if a command exits with a non-zero status
 

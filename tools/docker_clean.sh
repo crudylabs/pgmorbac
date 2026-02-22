@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# clean_docker.sh - Remove a PostgreSQL Docker container
-# Usage: ./clean_docker.sh [container_name]
+# docker_clean.sh - Remove a PostgreSQL Docker container
+# Usage: ./docker_clean.sh [container_name]
 
 set -e # Exit immediately if a command exits with a non-zero status
 
