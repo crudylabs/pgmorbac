@@ -32,7 +32,7 @@ fi
 
 echo "Waiting for PostgreSQL to be ready..."
 for i in {1..30}; do
-    if docker exec "$CONTAINER" psql -U "$POSTGRES_USER" -c '\q' 2>/dev/null; then
+    if docker exec "$CONTAINER" psql -U "$POSTGRES_USER" -c '\q'; then
         echo "PostgreSQL is ready in container $CONTAINER"
         exit 0
     fi

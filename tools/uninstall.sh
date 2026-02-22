@@ -34,7 +34,7 @@ if [ -f "$CONTROL_FILE" ]; then
 fi
 
 # Remove all SQL files (versioned and upgrade scripts)
-SQL_FILES_COUNT=$(find "$EXTDIR" -name "${PROJECT_FILENAME}--*.sql" -type f 2>/dev/null | wc -l)
+SQL_FILES_COUNT=$(find "$EXTDIR" -name "${PROJECT_FILENAME}--*.sql" -type f | wc -l)
 if [ "$SQL_FILES_COUNT" -gt 0 ]; then
     find "$EXTDIR" -name "${PROJECT_FILENAME}--*.sql" -type f -exec rm -f {} \;
     echo "Removed: ${SQL_FILES_COUNT} SQL file(s)"

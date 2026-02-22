@@ -23,7 +23,7 @@ if [ ! -d "$TEST_DIR" ]; then
     exit 1
 fi
 
-if ! psql -d "$DB" -c '\q' 2>/dev/null; then
+if ! psql -d "$DB" -c '\q'; then
     echo "Error: cannot connect to database: $DB" >&2
     echo "Ensure the database exists and is accessible" >&2
     exit 1

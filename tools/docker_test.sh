@@ -22,7 +22,7 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
     exit 1
 fi
 
-if ! docker exec "$CONTAINER" psql -U postgres -c '\q' 2>/dev/null; then
+if ! docker exec "$CONTAINER" psql -U postgres -c '\q'; then
     echo "Error: PostgreSQL not accessible in container: $CONTAINER" >&2
     exit 1
 fi
