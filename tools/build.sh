@@ -16,34 +16,17 @@ fi
 
 rm -f "$OUTPUT"
 
-BUILD_ORDER=(
-    "header.sql"
-    "types.sql"
-    "config.sql"
-    "organizations.sql"
-    "roles.sql"
-    "activities.sql"
-    "views.sql"
-    "contexts.sql"
-    "rules.sql"
-    "cross_org_rules.sql"
-    "admin_rules.sql"
-    "audit.sql"
-    "hierarchy_functions.sql"
-    "materialized_views.sql"
-    "validation.sql"
-    "auth_cache.sql"
-    "authorization.sql"
-    "policy_dsl.sql"
-    "rls.sql"
-    "obligations.sql"
-    "admin_helpers.sql"
-    "footer.sql"
-)
+BUILD_FILES=("header.sql")
+
+while IFS= read -r file; do
+    BUILD_FILES+=("$file")
+done < <(find "$SRC_DIR" -maxdepth 1 -name "*.sql" -type f ! -name "header.sql" ! -name "footer.sql" -exec basename {} \; | sort)
+
+BUILD_FILES+=("footer.sql")
 
 file_count=0
 
-for filename in "${BUILD_ORDER[@]}"; do
+for filename in "${BUILD_FILES[@]}"; do
     filepath="$SRC_DIR/$filename"
     if [ -f "$filepath" ]; then
         cat "$filepath" >> "$OUTPUT"
