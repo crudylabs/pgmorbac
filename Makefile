@@ -43,11 +43,12 @@ install: build
 	@cp $(OUTPUT_DEV_FILENAME) $(OUTPUT_RELEASE_FILENAME)
 	@./tools/install.sh $(PROJECT_FILENAME) $(PROJECT_VERSION)
 
-.PHONY: test
-test: build
+.PHONY: check
+check: install
+	@echo "Running tests..."
 	@dropdb morbac_test 2>/dev/null || true
 	@createdb morbac_test
-	@./tools/test.sh morbac_test $(OUTPUT_DEV_FILENAME)
+	@./tools/test.sh morbac_test
 	@dropdb morbac_test
 
 # Uninstall extension from PostgreSQL
@@ -88,9 +89,10 @@ docker-uninstall:
 	@./tools/docker_uninstall.sh $(DOCKER_CONTAINER) $(PROJECT_FILENAME)
 
 # Build and run tests in Docker container
-.PHONY: docker-test
-docker-test: build docker-start
-	@./tools/docker_test.sh $(DOCKER_CONTAINER) morbac_test $(OUTPUT_DEV_FILENAME)
+.PHONY: docker-check
+docker-check: docker-install
+	@echo "Running tests in Docker..."
+	@./tools/docker_test.sh $(DOCKER_CONTAINER) morbac_test postgres
 
 # Show help
 .PHONY: help
@@ -100,7 +102,7 @@ help:
 	@echo "Makefile targets:"
 	@echo "  make build            - Build $(OUTPUT_DEV_FILENAME) from src/"
 	@echo "  make release          - Build versioned $(PROJECT_FILENAME)--X.Y.Z.sql from src/"
-	@echo "  make test             - Build and run test suite"
+	@echo "  make check            - Build and run test suite"
 	@echo "  make install          - Build and install $(PROJECT_FILENAME) to PostgreSQL"
 	@echo "  make uninstall        - Uninstall $(PROJECT_FILENAME) from PostgreSQL"
 	@echo "  make clean            - Clean up generated files"
@@ -112,5 +114,5 @@ help:
 	@echo "  make docker-clean     - Remove PostgreSQL Docker container"
 	@echo "  make docker-install   - Build and install extension in Docker container"
 	@echo "  make docker-uninstall - Uninstall extension from Docker container"
-	@echo "  make docker-test      - Build and run test suite in Docker container"
+	@echo "  make docker-check     - Build and run test suite in Docker container"
 	@echo ""

@@ -1,41 +1,44 @@
 #!/bin/bash
 
 # docker_test.sh - Run tests in a Docker container
-# Usage: ./docker_test.sh [container_name] [database_name] [sql_file]
+# Usage: ./docker_test.sh [container_name] [database_name] [postgres_user]
 
 set -e # Exit immediately if a command exits with a non-zero status
 
 CONTAINER="${1:-postgres}"
 DB="${2:-morbac_test}"
-SQL_FILE="${3:-pg_morbac.sql}"
+PG_USER="${3:-postgres}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-
-if [ ! -f "$PROJECT_DIR/$SQL_FILE" ]; then
-    echo "Error: SQL file not found: $SQL_FILE" >&2
-    exit 1
-fi
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
     echo "Error: Docker container not running: $CONTAINER" >&2
     exit 1
 fi
 
-if ! docker exec "$CONTAINER" psql -U postgres -c '\q'; then
+if ! docker exec "$CONTAINER" psql -U "$PG_USER" -c '\q' 2>/dev/null; then
     echo "Error: PostgreSQL not accessible in container: $CONTAINER" >&2
     exit 1
 fi
 
-docker exec "$CONTAINER" psql -U postgres -c "DROP DATABASE IF EXISTS $DB" -q
-docker exec "$CONTAINER" psql -U postgres -c "CREATE DATABASE $DB" -q
+if [ ! -d "$PROJECT_DIR/tests" ]; then
+    echo "Error: tests directory not found" >&2
+    exit 1
+fi
 
+echo "Creating test database..."
+docker exec "$CONTAINER" psql -U "$PG_USER" -c "DROP DATABASE IF EXISTS $DB" -q
+docker exec "$CONTAINER" psql -U "$PG_USER" -c "CREATE DATABASE $DB" -q
+
+echo "Copying test files to container..."
 docker exec "$CONTAINER" mkdir -p /tmp/pg_morbac_test/tools
-docker cp "$PROJECT_DIR/$SQL_FILE" "$CONTAINER:/tmp/pg_morbac_test/"
 docker cp "$PROJECT_DIR/tests" "$CONTAINER:/tmp/pg_morbac_test/"
 docker cp "$SCRIPT_DIR/test.sh" "$CONTAINER:/tmp/pg_morbac_test/tools/"
 
-docker exec -u postgres -w /tmp/pg_morbac_test "$CONTAINER" bash tools/test.sh "$DB" "$SQL_FILE" postgres
+echo "Running tests..."
+docker exec -w /tmp/pg_morbac_test "$CONTAINER" bash tools/test.sh "$DB" "$PG_USER"
 
-docker exec "$CONTAINER" psql -U postgres -c "DROP DATABASE $DB" -q
+# Cleanup
+docker exec "$CONTAINER" psql -U "$PG_USER" -c "DROP DATABASE $DB" -q
 docker exec "$CONTAINER" rm -rf /tmp/pg_morbac_test
