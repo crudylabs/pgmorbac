@@ -1,78 +1,70 @@
 # Makefile for pg_morbac PostgreSQL Extension
 # Multi-OrBAC: Organization-Based Access Control
 
-EXTENSION = pg_morbac
+PROJECT_FILENAME = pg_morbac
 
-# Read version from control file
-EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed "s/default_version = '\(.*\)'/\1/")
+# Read version from control file using centralized script
+PROJECT_VERSION = $(shell ./tools/get_version.sh $(PROJECT_FILENAME).control)
 
 # For development, work on source files in src/
 SRC_DIR = src
-DEV_SQL = $(EXTENSION).sql
-DATA = $(EXTENSION)--$(EXTVERSION).sql
-DOCS = README.md
+OUTPUT_DEV_FILENAME = $(PROJECT_FILENAME).sql
+OUTPUT_RELEASE_FILENAME = $(PROJECT_FILENAME)--$(PROJECT_VERSION).sql
 
-# PostgreSQL extension build
+# PostgreSQL Extension build
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
 # Custom targets
 
-# Build versioned SQL file from source files
 .PHONY: build
 build:
-	@echo "Building release $(EXTVERSION) from source files..."
-	@./tools/build.sh
-	@if [ ! -f $(DEV_SQL) ]; then \
-		echo "Error: Build failed"; \
+	@./tools/build.sh $(SRC_DIR) $(OUTPUT_DEV_FILENAME)
+	@if [ ! -f $(OUTPUT_DEV_FILENAME) ]; then \
+		echo "Error: Build failed" >&2; \
 		exit 1; \
 	fi
-	cp $(DEV_SQL) $(DATA)
-	@echo "Created $(DATA)"
-	@echo "Ready to install or tag: git tag v$(EXTVERSION)"
 
-# Install extension in PostgreSQL (creates versioned file if needed)
+# Rename development file to versioned release file
+.PHONY: release
+release: build
+	mv $(OUTPUT_DEV_FILENAME) $(OUTPUT_RELEASE_FILENAME)
+	@echo "Release $(PROJECT_VERSION) built at $(OUTPUT_RELEASE_FILENAME)."
+
+# Build and install extension in PostgreSQL
 .PHONY: install
 install: build
-	@echo "Installing pg_morbac extension..."
-	$(MAKE) -f Makefile install
+	@cp $(OUTPUT_DEV_FILENAME) $(OUTPUT_RELEASE_FILENAME)
+	@./tools/install.sh $(PROJECT_FILENAME) $(PROJECT_VERSION)
 
-# Run tests with development file in temporary database
 .PHONY: test
 test: build
-	@echo "Testing with development file..."
-	-dropdb morbac_test 2>/dev/null || true
-	createdb morbac_test
-	@./tools/test.sh morbac_test
-	dropdb morbac_test
-	@echo "Test completed."
+	@dropdb morbac_test 2>/dev/null || true
+	@createdb morbac_test
+	@./tools/test.sh morbac_test $(OUTPUT_DEV_FILENAME)
+	@dropdb morbac_test
 
-# Uninstall extension
+# Uninstall extension from PostgreSQL
 .PHONY: uninstall
 uninstall:
-	@echo "Uninstalling pg_morbac extension..."
-	$(MAKE) -f Makefile uninstall
+	@echo "Uninstalling $(PROJECT_FILENAME)..."
+	@./tools/uninstall.sh $(PROJECT_FILENAME)
+
+# Clean up generated files
+.PHONY: clean
+clean:
+	@rm -f $(OUTPUT_DEV_FILENAME) $(OUTPUT_RELEASE_FILENAME)
 
 # Show help
 .PHONY: help
 help:
 	@echo "pg_morbac Makefile targets:"
-	@echo ""
-	@echo "Development:"
-	@echo "  Edit source files in src/ directory"
-	@echo ""
-	@echo "  make build        - Build versioned pg_morbac--X.Y.Z.sql from src/"
+	@echo "  make build        - Build $(OUTPUT_DEV_FILENAME) from src/"
+	@echo "  make release      - Build versioned $(PROJECT_FILENAME)--X.Y.Z.sql from src/"
 	@echo "  make test         - Build and run test suite"
-	@echo "  make install      - Build and install extension to PostgreSQL"
-	@echo "  make uninstall    - Uninstall extension from PostgreSQL"
+	@echo "  make install      - Build and install $(PROJECT_FILENAME) to PostgreSQL"
+	@echo "  make uninstall    - Uninstall $(PROJECT_FILENAME) from PostgreSQL"
+	@echo "  make clean        - Clean up generated files"
 	@echo "  make help         - Show this help"
-	@echo ""
-	@echo "Workflow:"
-	@echo "  1. Edit source files in src/"
-	@echo "  2. make test (build and test changes)"
-	@echo "  3. Update version in pg_morbac.control"
-	@echo "  4. make build (builds versioned SQL)"
-	@echo "  5. git tag vX.Y.Z && git push --tags"
-	@echo ""
 	@echo ""

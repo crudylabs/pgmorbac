@@ -1,28 +1,21 @@
 #!/bin/bash
-# =============================================================================
-# Build Script for pg_morbac Extension
-# =============================================================================
-# Concatenates SQL source files in src/ into a single pg_morbac.sql file
-# Order: header first, then specific order for dependencies, footer last
-# =============================================================================
 
-set -e
+# build.sh - Build the PostgreSQL extension SQL file from source components
+# Usage: ./build.sh [source_directory] [output_file]
 
-SRC_DIR="src"
-OUTPUT="pg_morbac.sql"
+set -e  # Exit immediately if a command exits with a non-zero status
 
-echo "Building pg_morbac.sql from source files..."
+SRC_DIR="${1:-src}"
+OUTPUT="${2:-pg_morbac.sql}"
 
-# Check if src directory exists
 if [ ! -d "$SRC_DIR" ]; then
-    echo "Error: $SRC_DIR directory not found"
+    echo "Error: source directory not found: $SRC_DIR" >&2
+    echo "Ensure the source directory exists in the project root" >&2
     exit 1
 fi
 
-# Remove old output file
 rm -f "$OUTPUT"
 
-# Define build order (dependencies matter)
 BUILD_ORDER=(
     "header.sql"
     "types.sql"
@@ -50,17 +43,15 @@ BUILD_ORDER=(
 
 file_count=0
 
-# Build in specified order
 for filename in "${BUILD_ORDER[@]}"; do
     filepath="$SRC_DIR/$filename"
     if [ -f "$filepath" ]; then
-        echo "  Adding: $filename"
         cat "$filepath" >> "$OUTPUT"
         echo "" >> "$OUTPUT"
         ((file_count++))
     else
-        echo "  Warning: $filename not found, skipping"
+        echo "Warning: $filename not found, skipping" >&2
     fi
 done
 
-echo "Built $OUTPUT successfully ($file_count source files)"
+echo "Built $OUTPUT ($file_count files)"

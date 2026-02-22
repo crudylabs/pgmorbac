@@ -1,87 +1,51 @@
 #!/bin/bash
-# Installation script for pg_morbac extension
 
-set -e
+# install.sh - Install the PostgreSQL extension to the system's extension directory
+# Usage: ./install.sh [project_name] [version]
 
-echo "=================================="
-echo "pg_morbac Extension Installer"
-echo "=================================="
-echo ""
+set -e # Exit immediately if a command exits with a non-zero status
 
-# Check if running as root or with sudo
-if [ "$EUID" -ne 0 ] && [ -z "$SUDO_USER" ]; then
-    echo "This script needs to copy files to PostgreSQL extension directory."
-    echo "Please run with sudo or as root."
-    echo ""
-    echo "Usage: sudo ./install.sh"
-    exit 1
-fi
+PROJECT_FILENAME="${1:-pg_morbac}"
+PROJECT_VERSION="${2}"
 
-# Check if pg_config is available
 if ! command -v pg_config &> /dev/null; then
-    echo "Error: pg_config not found in PATH"
-    echo "Please install PostgreSQL development packages:"
-    echo "  Ubuntu/Debian: sudo apt-get install postgresql-server-dev-all"
-    echo "  RedHat/CentOS: sudo yum install postgresql-devel"
-    echo "  macOS: brew install postgresql"
+    echo "Error: pg_config not found" >&2
+    echo "Install: apt install postgresql-server-dev-all (Debian/Ubuntu), yum install postgresql-devel (RHEL/CentOS), or brew install postgresql (macOS)" >&2
     exit 1
 fi
 
-# Get PostgreSQL extension directory
 EXTDIR=$(pg_config --sharedir)/extension
-
-echo "PostgreSQL extension directory: $EXTDIR"
-echo ""
-
-# Check if directory exists
 if [ ! -d "$EXTDIR" ]; then
-    echo "Error: Extension directory does not exist: $EXTDIR"
+    echo "Error: extension directory not found: $EXTDIR" >&2
     exit 1
 fi
 
-# Detect version from control file
-CONTROL_FILE="pg_morbac.control"
+CONTROL_FILE="${PROJECT_FILENAME}.control"
 if [ ! -f "$CONTROL_FILE" ]; then
-    echo "Error: $CONTROL_FILE not found"
-    echo "Please run this script from the pg_morbac directory"
+    echo "Error: control file not found: $CONTROL_FILE" >&2
+    echo "Run this script from the project root directory" >&2
     exit 1
 fi
 
-VERSION=$(grep "default_version" "$CONTROL_FILE" | sed "s/default_version = '\(.*\)'/\1/")
-if [ -z "$VERSION" ]; then
-    echo "Error: Could not detect version from $CONTROL_FILE"
+if [ -z "$PROJECT_VERSION" ]; then
+    SCRIPT_DIR=$(dirname "$0")
+    PROJECT_VERSION=$("$SCRIPT_DIR/get_version.sh" "$CONTROL_FILE")
+fi
+
+if [ -z "$PROJECT_VERSION" ]; then
+    echo "Error: could not detect version from $CONTROL_FILE" >&2
     exit 1
 fi
 
-SQL_FILE="pg_morbac--${VERSION}.sql"
-
-echo "Detected version: $VERSION"
-echo ""
-
-# Check if versioned SQL file exists
+SQL_FILE="${PROJECT_FILENAME}--${PROJECT_VERSION}.sql"
 if [ ! -f "$SQL_FILE" ]; then
-    echo "Error: $SQL_FILE not found"
-    echo "Please run 'make build' first to create the versioned SQL file"
+    echo "Error: versioned SQL file not found: $SQL_FILE" >&2
+    echo "Run 'make build' to generate the required file" >&2
     exit 1
 fi
 
-# Copy extension files
-echo "Installing extension files..."
-cp -v pg_morbac.control "$EXTDIR/"
-cp -v "$SQL_FILE" "$EXTDIR/"
+echo "Installing ${PROJECT_FILENAME} v${PROJECT_VERSION} to ${EXTDIR}"
+cp "$CONTROL_FILE" "$EXTDIR/"
+mv "$SQL_FILE" "$EXTDIR/"
 
-echo ""
-echo "=================================="
-echo "Installation complete!"
-echo "=================================="
-echo ""
-echo "To use the extension in your database:"
-echo ""
-echo "  psql -d your_database -c 'CREATE EXTENSION pg_morbac;'"
-echo ""
-echo "To run tests:"
-echo ""
-echo "  make test"
-echo ""
-echo "For more information, see README.md"
-echo ""
+echo "Installation complete. Enable with: CREATE EXTENSION ${PROJECT_FILENAME};"
