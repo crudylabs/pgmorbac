@@ -43,6 +43,24 @@ install: build
 	@cp $(OUTPUT_DEV_FILENAME) $(OUTPUT_RELEASE_FILENAME)
 	@./tools/install.sh $(PROJECT_FILENAME) $(PROJECT_VERSION)
 
+.PHONY: test
+test: build
+	@dropdb morbac_test 2>/dev/null || true
+	@createdb morbac_test
+	@./tools/test.sh morbac_test $(OUTPUT_DEV_FILENAME)
+	@dropdb morbac_test
+
+# Uninstall extension from PostgreSQL
+.PHONY: uninstall
+uninstall:
+	@echo "Uninstalling $(PROJECT_FILENAME)..."
+	@./tools/uninstall.sh $(PROJECT_FILENAME)
+
+# Clean up generated files
+.PHONY: clean
+clean:
+	@rm -f $(OUTPUT_DEV_FILENAME) $(OUTPUT_RELEASE_FILENAME)
+
 # Start PostgreSQL Docker container
 .PHONY: docker-start
 docker-start:
@@ -69,28 +87,10 @@ docker-install: build docker-start
 docker-uninstall:
 	@./tools/docker_uninstall.sh $(DOCKER_CONTAINER) $(PROJECT_FILENAME)
 
-.PHONY: test
-test: build
-	@dropdb morbac_test 2>/dev/null || true
-	@createdb morbac_test
-	@./tools/test.sh morbac_test $(OUTPUT_DEV_FILENAME)
-	@dropdb morbac_test
-
 # Build and run tests in Docker container
 .PHONY: docker-test
 docker-test: build docker-start
 	@./tools/docker_test.sh $(DOCKER_CONTAINER) morbac_test $(OUTPUT_DEV_FILENAME)
-
-# Uninstall extension from PostgreSQL
-.PHONY: uninstall
-uninstall:
-	@echo "Uninstalling $(PROJECT_FILENAME)..."
-	@./tools/uninstall.sh $(PROJECT_FILENAME)
-
-# Clean up generated files
-.PHONY: clean
-clean:
-	@rm -f $(OUTPUT_DEV_FILENAME) $(OUTPUT_RELEASE_FILENAME)
 
 # Show help
 .PHONY: help
