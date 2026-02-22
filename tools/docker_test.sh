@@ -35,7 +35,7 @@ docker cp "$PROJECT_DIR/$SQL_FILE" "$CONTAINER:/tmp/pg_morbac_test/"
 docker cp "$PROJECT_DIR/tests" "$CONTAINER:/tmp/pg_morbac_test/"
 docker cp "$SCRIPT_DIR/test.sh" "$CONTAINER:/tmp/pg_morbac_test/tools/"
 
-docker exec -w /tmp/pg_morbac_test "$CONTAINER" bash tools/test.sh "$DB" "$SQL_FILE"
+docker exec -u postgres -w /tmp/pg_morbac_test "$CONTAINER" bash tools/test.sh "$DB" "$SQL_FILE" postgres
 
 docker exec "$CONTAINER" psql -U postgres -c "DROP DATABASE $DB" -q
 docker exec "$CONTAINER" rm -rf /tmp/pg_morbac_test

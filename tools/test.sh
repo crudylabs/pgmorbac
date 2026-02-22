@@ -1,12 +1,13 @@
 #!/bin/bash
 
 # test.sh - Run tests against the PostgreSQL extension using psql
-# Usage: ./test.sh [database_name] [sql_file]
+# Usage: ./test.sh [database_name] [sql_file] [user]
 
 set -e # Exit immediately if a command exits with a non-zero status
 
 DB="${1:-morbac_test}"
 SQL_FILE="${2:-pg_morbac.sql}"
+USER="${3:-postgres}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -23,7 +24,7 @@ if [ ! -d "$TEST_DIR" ]; then
     exit 1
 fi
 
-if ! psql -d "$DB" -c '\q'; then
+if ! psql -U "$USER" -d "$DB" -c '\q'; then
     echo "Error: cannot connect to database: $DB" >&2
     echo "Ensure the database exists and is accessible" >&2
     exit 1
@@ -31,17 +32,17 @@ fi
 
 echo "Testing $SQL_FILE on database $DB"
 
-psql -d "$DB" -f "$PROJECT_DIR/$SQL_FILE" -q
+psql -U "$USER" -d "$DB" -f "$PROJECT_DIR/$SQL_FILE" -q
 
 if [ -f "$TEST_DIR/00_setup.sql" ]; then
-    psql -d "$DB" -f "$TEST_DIR/00_setup.sql" -q
+    psql -U "$USER" -d "$DB" -f "$TEST_DIR/00_setup.sql" -q
 fi
 
 for test_file in "$TEST_DIR"/[0-9][0-9]_*.sql; do
     if [ -f "$test_file" ]; then
         test_name=$(basename "$test_file" .sql)
         echo "Running: $test_name"
-        psql -d "$DB" -f "$test_file" -q
+        psql -U "$USER" -d "$DB" -f "$test_file" -q
     fi
 done
 
