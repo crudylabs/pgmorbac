@@ -6,6 +6,10 @@ PROJECT_FILENAME = pg_morbac
 # Read version from control file using centralized script
 PROJECT_VERSION = $(shell ./tools/get_version.sh $(PROJECT_FILENAME).control)
 
+# Docker configuration
+DOCKER_CONTAINER ?= postgres
+DOCKER_PORT ?= 5432
+
 # For development, work on source files in src/
 SRC_DIR = src
 OUTPUT_DEV_FILENAME = $(PROJECT_FILENAME).sql
@@ -18,6 +22,7 @@ include $(PGXS)
 
 # Custom targets
 
+# Build the extension SQL file from source components
 .PHONY: build
 build:
 	@./tools/build.sh $(SRC_DIR) $(OUTPUT_DEV_FILENAME)
@@ -38,12 +43,43 @@ install: build
 	@cp $(OUTPUT_DEV_FILENAME) $(OUTPUT_RELEASE_FILENAME)
 	@./tools/install.sh $(PROJECT_FILENAME) $(PROJECT_VERSION)
 
+# Start PostgreSQL Docker container
+.PHONY: docker-start
+docker-start:
+	@./tools/start_docker.sh $(DOCKER_CONTAINER) $(DOCKER_PORT)
+
+# Stop PostgreSQL Docker container
+.PHONY: docker-stop
+docker-stop:
+	@./tools/stop_docker.sh $(DOCKER_CONTAINER)
+
+# Remove PostgreSQL Docker container
+.PHONY: docker-clean
+docker-clean:
+	@./tools/clean_docker.sh $(DOCKER_CONTAINER)
+
+# Build and install extension in Docker container
+.PHONY: docker-install
+docker-install: build docker-start
+	@cp $(OUTPUT_DEV_FILENAME) $(OUTPUT_RELEASE_FILENAME)
+	@./tools/install_docker.sh $(DOCKER_CONTAINER) $(PROJECT_FILENAME) $(PROJECT_VERSION)
+
+# Uninstall extension from Docker container
+.PHONY: docker-uninstall
+docker-uninstall:
+	@./tools/uninstall_docker.sh $(DOCKER_CONTAINER) $(PROJECT_FILENAME)
+
 .PHONY: test
 test: build
 	@dropdb morbac_test 2>/dev/null || true
 	@createdb morbac_test
 	@./tools/test.sh morbac_test $(OUTPUT_DEV_FILENAME)
 	@dropdb morbac_test
+
+# Build and run tests in Docker container
+.PHONY: docker-test
+docker-test: build docker-start
+	@./tools/test_docker.sh $(DOCKER_CONTAINER) morbac_test $(OUTPUT_DEV_FILENAME)
 
 # Uninstall extension from PostgreSQL
 .PHONY: uninstall
@@ -59,12 +95,22 @@ clean:
 # Show help
 .PHONY: help
 help:
-	@echo "pg_morbac Makefile targets:"
-	@echo "  make build        - Build $(OUTPUT_DEV_FILENAME) from src/"
-	@echo "  make release      - Build versioned $(PROJECT_FILENAME)--X.Y.Z.sql from src/"
-	@echo "  make test         - Build and run test suite"
-	@echo "  make install      - Build and install $(PROJECT_FILENAME) to PostgreSQL"
-	@echo "  make uninstall    - Uninstall $(PROJECT_FILENAME) from PostgreSQL"
-	@echo "  make clean        - Clean up generated files"
-	@echo "  make help         - Show this help"
+	@echo "pg_morbac Makefile - Build and manage the PostgreSQL extension"
+	@echo ""
+	@echo "Makefile targets:"
+	@echo "  make build            - Build $(OUTPUT_DEV_FILENAME) from src/"
+	@echo "  make release          - Build versioned $(PROJECT_FILENAME)--X.Y.Z.sql from src/"
+	@echo "  make test             - Build and run test suite"
+	@echo "  make install          - Build and install $(PROJECT_FILENAME) to PostgreSQL"
+	@echo "  make uninstall        - Uninstall $(PROJECT_FILENAME) from PostgreSQL"
+	@echo "  make clean            - Clean up generated files"
+	@echo "  make help             - Show this help"
+	@echo ""
+	@echo "Docker targets:"
+	@echo "  make docker-start     - Start PostgreSQL Docker container"
+	@echo "  make docker-stop      - Stop PostgreSQL Docker container"
+	@echo "  make docker-clean     - Remove PostgreSQL Docker container"
+	@echo "  make docker-install   - Build and install extension in Docker container"
+	@echo "  make docker-uninstall - Uninstall extension from Docker container"
+	@echo "  make docker-test      - Build and run test suite in Docker container"
 	@echo ""
