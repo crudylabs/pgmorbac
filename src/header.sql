@@ -13,8 +13,5 @@
 -- - Role delegation with time bounds
 -- =============================================================================
 
--- Require pgcrypto for UUID generation
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 -- Create the morbac schema
 CREATE SCHEMA IF NOT EXISTS morbac;

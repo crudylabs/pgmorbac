@@ -19,7 +19,7 @@ Complete technical documentation for the Multi-OrBAC PostgreSQL extension.
 
 pg_morbac is built on these principles:
 
-1. **Pure PostgreSQL**: No external dependencies (except pgcrypto)
+1. **Pure PostgreSQL**: No external dependencies
 2. **Schema Isolation**: All objects in `morbac` schema
 3. **Default Deny**: No permission = access denied
 4. **Prohibition Precedence**: Prohibitions checked first, always override permissions

@@ -46,7 +46,7 @@ Feature requests are welcome! Please open an issue describing:
 All changes must include tests:
 - Add test cases to `test_morbac.sql`
 - Ensure all existing tests still pass
-- Test against PostgreSQL 12+ (mention version in PR)
+- Test against PostgreSQL 13+ (mention version in PR)
 
 ### Documentation
 

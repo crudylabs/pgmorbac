@@ -5,7 +5,7 @@
 A PostgreSQL extension implementing the Multi-OrBAC access control model - enabling organization-centric, context-aware, and hierarchical access control with advanced features like delegation, separation of duty, and cross-organizational policies.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PostgreSQL 12+](https://img.shields.io/badge/PostgreSQL-12%2B-blue.svg)](https://www.postgresql.org/)
+[![PostgreSQL 13+](https://img.shields.io/badge/PostgreSQL-13%2B-blue.svg)](https://www.postgresql.org/)
 
 ## Features
 
@@ -26,8 +26,7 @@ A PostgreSQL extension implementing the Multi-OrBAC access control model - enabl
 
 ### Prerequisites
 
-- PostgreSQL 12 or higher
-- `pgcrypto` extension (included with PostgreSQL)
+- PostgreSQL 13 or higher
 - Development tools: `make`, `bash`
 
 ### Quick Install
