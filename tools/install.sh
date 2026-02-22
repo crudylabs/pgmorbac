@@ -5,7 +5,7 @@
 
 set -e # Exit immediately if a command exits with a non-zero status
 
-PROJECT_FILENAME="${1:-pg_morbac}"
+PROJECT_FILENAME="${1:-pgmorbac}"
 PROJECT_VERSION="${2}"
 
 if ! command -v pg_config &> /dev/null; then

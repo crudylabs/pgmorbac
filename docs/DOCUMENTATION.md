@@ -1,4 +1,4 @@
-# pg_morbac Documentation
+# pgmorbac Documentation
 
 Complete technical documentation for the Multi-OrBAC PostgreSQL extension.
 
@@ -17,7 +17,7 @@ Complete technical documentation for the Multi-OrBAC PostgreSQL extension.
 
 ### Design Principles
 
-pg_morbac is built on these principles:
+pgmorbac is built on these principles:
 
 1. **Pure PostgreSQL**: No external dependencies
 2. **Schema Isolation**: All objects in `morbac` schema
@@ -834,7 +834,7 @@ SELECT EXISTS(
 
 ### Comparison: Multi-OrBAC vs Traditional RBAC
 
-| Aspect | Traditional RBAC | Multi-OrBAC (pg_morbac) |
+| Aspect | Traditional RBAC | Multi-OrBAC (pgmorbac) |
 |--------|-----------------|-------------------------|
 | **Multi-tenancy** | Single tenant or complex workarounds | Native multi-organization |
 | **Prohibition** | No standard support | First-class, always wins |

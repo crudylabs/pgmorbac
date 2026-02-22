@@ -1,5 +1,5 @@
 -- =============================================================================
--- pg_morbac Extension
+-- pgmorbac Extension
 -- =============================================================================
 -- Multi-OrBAC: Organization-Based Access Control with Multi-Organization Support
 -- Based on the CNRS research paper on Multi-OrBAC model
@@ -14,4 +14,4 @@
 -- =============================================================================
 
 -- Create the morbac schema
-CREATE SCHEMA IF NOT EXISTS morbac;
+CREATE SCHEMA morbac;

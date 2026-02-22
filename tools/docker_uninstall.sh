@@ -6,7 +6,7 @@
 set -e # Exit immediately if a command exits with a non-zero status
 
 CONTAINER="${1:-postgres}"
-PROJECT_FILENAME="${2:-pg_morbac}"
+PROJECT_FILENAME="${2:-pgmorbac}"
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
     echo "Error: Docker container not running: $CONTAINER" >&2

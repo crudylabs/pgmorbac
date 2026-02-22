@@ -6,7 +6,7 @@
 set -e  # Exit immediately if a command exits with a non-zero status
 
 SRC_DIR="${1:-src}"
-OUTPUT="${2:-pg_morbac.sql}"
+OUTPUT="${2:-pgmorbac.sql}"
 
 if [ ! -d "$SRC_DIR" ]; then
     echo "Error: source directory not found: $SRC_DIR" >&2

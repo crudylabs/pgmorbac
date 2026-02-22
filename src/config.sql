@@ -1,7 +1,7 @@
 -- =============================================================================
 -- CONFIGURATION
 -- =============================================================================
--- Centralized configuration for pg_morbac extension
+-- Centralized configuration for pgmorbac extension
 -- Edit these values to customize behavior
 
 CREATE TABLE morbac.config (

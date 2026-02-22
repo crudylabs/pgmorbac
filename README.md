@@ -1,4 +1,4 @@
-# pg_morbac
+# pgmorbac
 
 **Multi-Organization Based Access Control for PostgreSQL**
 
@@ -33,15 +33,15 @@ A PostgreSQL extension implementing the Multi-OrBAC access control model - enabl
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/pg_morbac.git
-cd pg_morbac
+git clone https://github.com/yourusername/pgmorbac.git
+cd pgmorbac
 
 # Build and install extension
 make build          # Build versioned file from src/
 sudo make install   # Install to PostgreSQL
 
 # Enable in your database
-psql -d mydb -c "CREATE EXTENSION pg_morbac;"
+psql -d mydb -c "CREATE EXTENSION pgmorbac;"
 ```
 
 ### Alternative: Using install script
@@ -58,14 +58,14 @@ sudo ./tools/install.sh
 
 ```bash
 # Build versioned file from source
-make build          # Concatenates src/ files into pg_morbac--1.0.0.sql
+make build          # Concatenates src/ files into pgmorbac--1.0.0.sql
 
 # Copy files to PostgreSQL extension directory
-sudo cp pg_morbac.control $(pg_config --sharedir)/extension/
-sudo cp pg_morbac--1.0.0.sql $(pg_config --sharedir)/extension/
+sudo cp pgmorbac.control $(pg_config --sharedir)/extension/
+sudo cp pgmorbac--1.0.0.sql $(pg_config --sharedir)/extension/
 
 # Enable in PostgreSQL
-psql -d mydb -c "CREATE EXTENSION pg_morbac;"
+psql -d mydb -c "CREATE EXTENSION pgmorbac;"
 ```
 
 ## Quick Start
@@ -169,13 +169,13 @@ LIMIT 10;
 # Development workflow
 # 1. Edit source files in src/ directory
 # 2. Build and test
-make build         # Build versioned pg_morbac--X.Y.Z.sql from src/
+make build         # Build versioned pgmorbac--X.Y.Z.sql from src/
 make test          # Build and run test suite
 
 # Manual testing
 make build
 createdb morbac_test
-psql -d morbac_test -f pg_morbac.sql
+psql -d morbac_test -f pgmorbac.sql
 # ... test manually ...
 dropdb morbac_test
 ```
@@ -216,8 +216,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
-git clone https://github.com/yourusername/pg_morbac.git
-cd pg_morbac
+git clone https://github.com/yourusername/pgmorbac.git
+cd pgmorbac
 
 # Edit source files in src/
 vim src/authorization.sql
@@ -226,9 +226,9 @@ vim src/authorization.sql
 make test          # Run test suite
 
 # When ready to release
-# 1. Update version in pg_morbac.control
+# 1. Update version in pgmorbac.control
 # 2. Build versioned file
-make build         # Creates pg_morbac--X.Y.Z.sql
+make build         # Creates pgmorbac--X.Y.Z.sql
 # 3. Tag in git
 git tag v1.0.1
 git push --tags
@@ -237,13 +237,13 @@ git push --tags
 ## Support
 
 - Read the [documentation](docs/DOCUMENTATION.md)
-- Report bugs via [GitHub Issues](https://github.com/yourusername/pg_morbac/issues)
-- Ask questions in [Discussions](https://github.com/yourusername/pg_morbac/discussions)
+- Report bugs via [GitHub Issues](https://github.com/yourusername/pgmorbac/issues)
+- Ask questions in [Discussions](https://github.com/yourusername/pgmorbac/discussions)
 - Security issues: see [SECURITY.md](SECURITY.md)
 
 ## Comparison with Traditional RBAC
 
-| Feature | Traditional RBAC | Traditional OrBAC | pg_morbac (Multi-OrBAC) |
+| Feature | Traditional RBAC | Traditional OrBAC | pgmorbac (Multi-OrBAC) |
 |---------|-----------------|-------------------|-------------------------|
 | Multi-tenancy | No | Single organization | Multi-organization |
 | Prohibitions | No | Yes | Yes |

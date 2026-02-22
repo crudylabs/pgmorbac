@@ -5,7 +5,7 @@
 
 set -e  # Exit immediately if a command exits with a non-zero status
 
-CONTROL_FILE="${1:-pg_morbac.control}"
+CONTROL_FILE="${1:-pgmorbac.control}"
 
 if [ ! -f "$CONTROL_FILE" ]; then
     echo "Error: control file not found: $CONTROL_FILE" >&2

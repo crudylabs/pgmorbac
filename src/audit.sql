@@ -15,7 +15,7 @@ CREATE TABLE morbac.audit_log (
     old_data JSONB,
     new_data JSONB,
     changed_fields TEXT[],
-    session_user TEXT DEFAULT SESSION_USER,
+    session_username TEXT DEFAULT SESSION_USER,
     client_addr INET DEFAULT INET_CLIENT_ADDR(),
     application_name TEXT DEFAULT CURRENT_SETTING('application_name', true),
     metadata JSONB DEFAULT '{}'::jsonb

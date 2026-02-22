@@ -32,13 +32,13 @@ docker exec "$CONTAINER" psql -U "$PG_USER" -c "DROP DATABASE IF EXISTS $DB" -q
 docker exec "$CONTAINER" psql -U "$PG_USER" -c "CREATE DATABASE $DB" -q
 
 echo "Copying test files to container..."
-docker exec "$CONTAINER" mkdir -p /tmp/pg_morbac_test/tools
-docker cp "$PROJECT_DIR/tests" "$CONTAINER:/tmp/pg_morbac_test/"
-docker cp "$SCRIPT_DIR/test.sh" "$CONTAINER:/tmp/pg_morbac_test/tools/"
+docker exec "$CONTAINER" mkdir -p /tmp/pgmorbac_test/tools
+docker cp "$PROJECT_DIR/tests" "$CONTAINER:/tmp/pgmorbac_test/"
+docker cp "$SCRIPT_DIR/test.sh" "$CONTAINER:/tmp/pgmorbac_test/tools/"
 
 echo "Running tests..."
-docker exec -w /tmp/pg_morbac_test "$CONTAINER" bash tools/test.sh "$DB" "$PG_USER"
+docker exec -w /tmp/pgmorbac_test "$CONTAINER" bash tools/test.sh "$DB" "$PG_USER"
 
 # Cleanup
 docker exec "$CONTAINER" psql -U "$PG_USER" -c "DROP DATABASE $DB" -q
-docker exec "$CONTAINER" rm -rf /tmp/pg_morbac_test
+docker exec "$CONTAINER" rm -rf /tmp/pgmorbac_test

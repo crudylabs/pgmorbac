@@ -2,6 +2,6 @@
 # Multi-OrBAC access control model for PostgreSQL
 comment = 'Multi-OrBAC: Organization-Based Access Control with multi-organization support'
 default_version = '1.0.0'
-module_pathname = '$libdir/pg_morbac'
+module_pathname = '$libdir/pgmorbac'
 relocatable = false
 schema = morbac

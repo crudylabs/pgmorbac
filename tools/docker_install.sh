@@ -6,7 +6,7 @@
 set -e # Exit immediately if a command exits with a non-zero status
 
 CONTAINER="${1:-postgres}"
-PROJECT_FILENAME="${2:-pg_morbac}"
+PROJECT_FILENAME="${2:-pgmorbac}"
 PROJECT_VERSION="${3}"
 
 if [ -z "$PROJECT_VERSION" ]; then
@@ -38,15 +38,15 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
     exit 1
 fi
 
-docker exec "$CONTAINER" mkdir -p /tmp/pg_morbac
-docker cp "$CONTROL_FILE" "$CONTAINER:/tmp/pg_morbac/"
-docker cp "$SQL_FILE" "$CONTAINER:/tmp/pg_morbac/"
+docker exec "$CONTAINER" mkdir -p /tmp/pgmorbac
+docker cp "$CONTROL_FILE" "$CONTAINER:/tmp/pgmorbac/"
+docker cp "$SQL_FILE" "$CONTAINER:/tmp/pgmorbac/"
 
 docker exec "$CONTAINER" sh -c "
     EXTDIR=\$(pg_config --sharedir)/extension
-    cp /tmp/pg_morbac/${CONTROL_FILE} \$EXTDIR/
-    cp /tmp/pg_morbac/${SQL_FILE} \$EXTDIR/
-    rm -rf /tmp/pg_morbac
+    cp /tmp/pgmorbac/${CONTROL_FILE} \$EXTDIR/
+    cp /tmp/pgmorbac/${SQL_FILE} \$EXTDIR/
+    rm -rf /tmp/pgmorbac
 "
 
 echo "Installed ${PROJECT_FILENAME} v${PROJECT_VERSION} to container ${CONTAINER}"

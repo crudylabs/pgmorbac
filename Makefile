@@ -1,7 +1,7 @@
-# Makefile for pg_morbac PostgreSQL Extension
+# Makefile for pgmorbac PostgreSQL Extension
 # Multi-OrBAC: Organization-Based Access Control
 
-PROJECT_FILENAME = pg_morbac
+PROJECT_FILENAME = pgmorbac
 
 # Read version from control file using centralized script
 PROJECT_VERSION = $(shell ./tools/get_version.sh $(PROJECT_FILENAME).control)
@@ -97,7 +97,7 @@ docker-check: docker-install
 # Show help
 .PHONY: help
 help:
-	@echo "pg_morbac Makefile - Build and manage the PostgreSQL extension"
+	@echo "pgmorbac Makefile - Build and manage the PostgreSQL extension"
 	@echo ""
 	@echo "Makefile targets:"
 	@echo "  make build            - Build $(OUTPUT_DEV_FILENAME) from src/"
