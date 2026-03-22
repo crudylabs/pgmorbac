@@ -16,13 +16,30 @@ fi
 
 rm -f "$OUTPUT"
 
-BUILD_FILES=("header.sql")
-
-while IFS= read -r file; do
-    BUILD_FILES+=("$file")
-done < <(find "$SRC_DIR" -maxdepth 1 -name "*.sql" -type f ! -name "header.sql" ! -name "footer.sql" -exec basename {} \; | sort)
-
-BUILD_FILES+=("footer.sql")
+BUILD_FILES=(
+    "header.sql"
+    "types.sql"
+    "config.sql"
+    "organizations.sql"
+    "activities.sql"
+    "views.sql"
+    "roles.sql"
+    "hierarchy_functions.sql"
+    "materialized_views.sql"
+    "contexts.sql"
+    "policy_dsl.sql"
+    "rules.sql"
+    "cross_org_rules.sql"
+    "admin_rules.sql"
+    "obligations.sql"
+    "audit.sql"
+    "rls.sql"
+    "admin_helpers.sql"
+    "auth_cache.sql"
+    "validation.sql"
+    "authorization.sql"
+    "footer.sql"
+)
 
 file_count=0
 

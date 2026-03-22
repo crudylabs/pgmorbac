@@ -145,7 +145,7 @@ CREATE OR REPLACE FUNCTION morbac.is_allowed(
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql
-STABLE
+VOLATILE
 AS $$
 DECLARE
     v_cached_result BOOLEAN;

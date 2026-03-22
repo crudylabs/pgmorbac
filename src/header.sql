@@ -12,6 +12,3 @@
 -- - Contextual access control
 -- - Role delegation with time bounds
 -- =============================================================================
-
--- Create the morbac schema
-CREATE SCHEMA morbac;

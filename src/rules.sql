@@ -6,6 +6,7 @@
 --
 -- Represents: Permission, Prohibition, Obligation, or Recommendation
 
+
 CREATE TABLE morbac.rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     org_id UUID NOT NULL REFERENCES morbac.orgs(id) ON DELETE CASCADE,
@@ -17,21 +18,40 @@ CREATE TABLE morbac.rules (
     valid_from TIMESTAMPTZ,
     valid_until TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    is_active BOOLEAN NOT NULL DEFAULT FALSE,
     metadata JSONB DEFAULT '{}'::jsonb,
     UNIQUE(org_id, role_id, activity, view, context_id, modality),
     CHECK (valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from)
 );
 
+
+-- Indexes for fast lookup and validity
 CREATE INDEX idx_rules_org_role ON morbac.rules(org_id, role_id);
 CREATE INDEX idx_rules_activity_view ON morbac.rules(activity, view);
 CREATE INDEX idx_rules_modality ON morbac.rules(modality);
 CREATE INDEX idx_rules_lookup ON morbac.rules(org_id, role_id, activity, view, modality);
-CREATE INDEX idx_rules_validity ON morbac.rules(valid_from, valid_until);
--- Performance: Fast lookup for active rules during authorization
-CREATE INDEX idx_rules_fast_lookup ON morbac.rules(org_id, modality, activity, view)
+
+-- Fast lookup index for active rules
+CREATE INDEX idx_rules_fast_lookup ON morbac.rules(org_id, activity, modality, view)
 INCLUDE (role_id, context_id)
-WHERE (valid_from IS NULL OR valid_from <= CURRENT_TIMESTAMP)
-  AND (valid_until IS NULL OR valid_until > CURRENT_TIMESTAMP);
+WHERE is_active = true;
+
+-- Placeholder trigger to maintain is_active (update as needed)
+CREATE OR REPLACE FUNCTION morbac.rules_set_is_active()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.is_active := (
+        (NEW.valid_from IS NULL OR NEW.valid_from <= CURRENT_TIMESTAMP)
+        AND (NEW.valid_until IS NULL OR NEW.valid_until > CURRENT_TIMESTAMP)
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_rules_set_is_active ON morbac.rules;
+CREATE TRIGGER trg_rules_set_is_active
+BEFORE INSERT OR UPDATE ON morbac.rules
+FOR EACH ROW EXECUTE FUNCTION morbac.rules_set_is_active();
 
 COMMENT ON TABLE morbac.rules IS 'Core OrBAC rules - Permission, Prohibition, Obligation, Recommendation';
 COMMENT ON COLUMN morbac.rules.org_id IS 'Organization scope';

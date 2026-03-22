@@ -64,9 +64,26 @@ CREATE OR REPLACE FUNCTION morbac.invalidate_cache_on_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
+DECLARE
+    v_org_id UUID;
 BEGIN
-    -- Clear cache for affected org
-    DELETE FROM morbac.auth_cache WHERE org_id = COALESCE(NEW.org_id, OLD.org_id);
+    -- Only clear cache if org_id exists in NEW or OLD
+    IF TG_OP = 'DELETE' THEN
+        BEGIN
+            v_org_id := OLD.org_id;
+        EXCEPTION WHEN undefined_column THEN
+            v_org_id := NULL;
+        END;
+    ELSE
+        BEGIN
+            v_org_id := NEW.org_id;
+        EXCEPTION WHEN undefined_column THEN
+            v_org_id := NULL;
+        END;
+    END IF;
+    IF v_org_id IS NOT NULL THEN
+        DELETE FROM morbac.auth_cache WHERE org_id = v_org_id;
+    END IF;
     RETURN COALESCE(NEW, OLD);
 END;
 $$;

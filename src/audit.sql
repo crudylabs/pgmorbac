@@ -32,7 +32,7 @@ COMMENT ON COLUMN morbac.audit_log.user_id IS 'Application user (from morbac.cur
 COMMENT ON COLUMN morbac.audit_log.org_id IS 'Organization context (from morbac.current_org_id() if available)';
 COMMENT ON COLUMN morbac.audit_log.operation IS 'INSERT, UPDATE, DELETE, or custom operation name';
 COMMENT ON COLUMN morbac.audit_log.changed_fields IS 'Array of field names that changed (for UPDATE operations)';
-COMMENT ON COLUMN morbac.audit_log.session_user IS 'Database session user';
+COMMENT ON COLUMN morbac.audit_log.session_username IS 'Database session user';
 COMMENT ON COLUMN morbac.audit_log.client_addr IS 'Client IP address';
 
 -- Generic audit trigger function

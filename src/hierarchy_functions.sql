@@ -72,9 +72,9 @@ BEGIN
         FROM effective_roles er
         INNER JOIN morbac.role_hierarchy rh ON rh.junior_role_id = er.role_id
     )
-    SELECT DISTINCT ON (role_id) role_id, depth
+    SELECT DISTINCT ON (effective_roles.role_id) effective_roles.role_id, effective_roles.depth
     FROM effective_roles
-    ORDER BY role_id, depth;
+    ORDER BY effective_roles.role_id, effective_roles.depth;
 END;
 $$;
 
@@ -98,9 +98,9 @@ BEGIN
         FROM inherited_roles ir
         INNER JOIN morbac.role_hierarchy rh ON rh.senior_role_id = ir.role_id
     )
-    SELECT DISTINCT ON (role_id) role_id, depth
+    SELECT DISTINCT ON (inherited_roles.role_id) inherited_roles.role_id, inherited_roles.depth
     FROM inherited_roles
-    ORDER BY role_id, depth;
+    ORDER BY inherited_roles.role_id, inherited_roles.depth;
 END;
 $$;
 
@@ -124,9 +124,9 @@ BEGIN
         FROM effective_activities ea
         INNER JOIN morbac.activity_hierarchy ah ON ah.senior_activity = ea.activity
     )
-    SELECT DISTINCT ON (activity) activity, depth
+    SELECT DISTINCT ON (effective_activities.activity) effective_activities.activity, effective_activities.depth
     FROM effective_activities
-    ORDER BY activity, depth;
+    ORDER BY effective_activities.activity, effective_activities.depth;
 END;
 $$;
 
@@ -150,9 +150,9 @@ BEGIN
         FROM effective_views ev
         INNER JOIN morbac.view_hierarchy vh ON vh.senior_view = ev.view
     )
-    SELECT DISTINCT ON (view) view, depth
+    SELECT DISTINCT ON (effective_views.view) effective_views.view, effective_views.depth
     FROM effective_views
-    ORDER BY view, depth;
+    ORDER BY effective_views.view, effective_views.depth;
 END;
 $$;
 
@@ -183,45 +183,39 @@ BEGIN
 
         UNION
 
-        -- Delegated roles (active and not revoked)
-        SELECT d.role_id, 'delegation'::TEXT, 0 AS depth
-        FROM morbac.delegations d
-        WHERE d.delegatee_id = p_user_id
-          AND d.org_id = p_org_id
-          AND NOT d.revoked
-          AND now() BETWEEN d.valid_from AND d.valid_until
-          -- Check delegator has the role
-          AND EXISTS (
-              SELECT 1 FROM morbac.user_roles ur
-              WHERE ur.user_id = d.delegator_id
-                AND ur.role_id = d.role_id
-                AND ur.org_id = d.org_id
-          )
-          -- Check not negatively assigned to delegatee
-          AND NOT EXISTS (
-              SELECT 1 FROM morbac.negative_role_assignments nra
-              WHERE nra.user_id = p_user_id
-                AND nra.role_id = d.role_id
-                AND nra.org_id = p_org_id
-          )
+                -- Delegated roles (active and not revoked)
+                SELECT d.role_id, 'delegation'::TEXT, 0 AS depth
+                FROM morbac.delegations d
+                WHERE d.delegatee_id = p_user_id
+                    AND d.org_id = p_org_id
+                    AND NOT d.revoked
+                    AND now() BETWEEN d.valid_from AND d.valid_until
+                    -- Check delegator has the role
+                    AND EXISTS (
+                            SELECT 1 FROM morbac.user_roles ur
+                            WHERE ur.user_id = d.delegator_id
+                                AND ur.role_id = d.role_id
+                                AND ur.org_id = d.org_id
+                    )
+                    -- Check not negatively assigned to delegatee
+                    AND NOT EXISTS (
+                            SELECT 1 FROM morbac.negative_role_assignments nra
+                            WHERE nra.user_id = p_user_id
+                                AND nra.role_id = d.role_id
+                                AND nra.org_id = p_org_id
+                    )
 
-        UNION
+                UNION
 
-        -- Derived roles (computed dynamically)
-        -- Note: derived roles are evaluated separately due to EXECUTE limitations
-        -- Use morbac.check_derived_role() helper
-
-        UNION
-
-        -- Role hierarchy (senior roles)
-        SELECT rh.senior_role_id, er.source || '_inherited', er.depth + 1
-        FROM effective_roles er
-        INNER JOIN morbac.role_hierarchy rh ON rh.junior_role_id = er.role_id
+                -- Role hierarchy (senior roles)
+                SELECT rh.senior_role_id, er.source || '_inherited', er.depth + 1
+                FROM effective_roles er
+                INNER JOIN morbac.role_hierarchy rh ON rh.junior_role_id = er.role_id
     )
-    SELECT DISTINCT ON (role_id) role_id, source, depth
+    SELECT DISTINCT ON (effective_roles.role_id) effective_roles.role_id, effective_roles.source, effective_roles.depth
     FROM effective_roles
-    WHERE role_id IS NOT NULL
-    ORDER BY role_id, depth;
+    WHERE effective_roles.role_id IS NOT NULL
+    ORDER BY effective_roles.role_id, effective_roles.depth;
 
     -- Add derived roles separately
     RETURN QUERY

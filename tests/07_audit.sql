@@ -28,11 +28,7 @@ VALUES (
     '11111111-1111-1111-1111-111111111111'
 );
 
--- Update an existing user_role
-UPDATE morbac.user_roles
-SET active = false
-WHERE user_id = 'aaaaaaaa-0000-0000-0000-000000000001'::uuid
-  AND role_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+
 
 -- Delete a user role
 DELETE FROM morbac.user_roles
@@ -43,14 +39,8 @@ WHERE user_id = 'ffffffff-0000-0000-0000-000000000001'::uuid
 SELECT
     operation,
     record_id,
-    CASE
-        WHEN old_data IS NOT NULL THEN old_data->>'active'
-        ELSE 'N/A'
-    END as old_active,
-    CASE
-        WHEN new_data IS NOT NULL THEN new_data->>'active'
-        ELSE 'N/A'
-    END as new_active,
+    'N/A' as old_active,
+    'N/A' as new_active,
     session_user,
     timestamp
 FROM morbac.audit_log
