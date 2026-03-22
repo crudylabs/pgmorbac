@@ -320,6 +320,24 @@ SELECT * FROM morbac.compile_policy();
 
 ## Advanced Features
 
+### Organization Rule Scope
+
+Rules in pgmorbac are always scoped to an organization (`org_id`).
+
+- To apply a rule only to a specific org, insert it with that `org_id`.
+- To apply a rule to all descendants, use `get_org_descendants(org_id)`:
+    ```sql
+    INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
+    SELECT descendant_id, :role_id, :activity, :view, 'permission'
+    FROM morbac.get_org_descendants(:org_id)
+    UNION ALL
+    SELECT :org_id, :role_id, :activity, :view, 'permission';
+    ```
+- To reference parent orgs, use `get_org_ancestors(org_id)`.
+- For cross-organization permissions or admin delegation, use `cross_org_rules` and `admin_rules`.
+
+See API Reference for details on these helper functions and tables.
+
 ### Hierarchies
 
 Organizations, roles, activities, and views support hierarchical relationships with transitive closure.
