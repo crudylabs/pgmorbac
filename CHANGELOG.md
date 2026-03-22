@@ -41,4 +41,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Complete documentation
 - Build and installation automation (Makefile, install.sh)
 
-[1.0.0]: https://github.com/yourusername/pgmorbac/releases/tag/v1.0.0
+[1.0.0]: https://github.com/MarcVillain/pgmorbac/releases/tag/v1.0.0

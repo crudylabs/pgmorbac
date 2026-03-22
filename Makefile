@@ -94,6 +94,15 @@ docker-check: docker-install
 	@echo "Running tests in Docker..."
 	@./tools/docker_test.sh $(DOCKER_CONTAINER) morbac_test postgres
 
+# Bump version across all relevant files
+.PHONY: bump-version
+bump-version:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Usage: make bump-version VERSION=X.Y.Z"; \
+		exit 1; \
+	fi
+	@./tools/bump_version.sh $(VERSION)
+
 # Show help
 .PHONY: help
 help:
@@ -106,6 +115,7 @@ help:
 	@echo "  make install          - Build and install $(PROJECT_FILENAME) to PostgreSQL"
 	@echo "  make uninstall        - Uninstall $(PROJECT_FILENAME) from PostgreSQL"
 	@echo "  make clean            - Clean up generated files"
+	@echo "  make bump-version     - Bump version in all files (e.g. make bump-version VERSION=1.1.0)"
 	@echo "  make help             - Show this help"
 	@echo ""
 	@echo "Docker targets:"
