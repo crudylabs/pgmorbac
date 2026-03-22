@@ -1,186 +1,344 @@
 -- =============================================================================
--- Test Setup - Creates test data for all tests
+-- Test Setup — GlobalTech Inc. Company Scenario
 -- =============================================================================
--- This file creates organizations, roles, users, activities, views, and contexts
--- that are used across multiple test files.
+-- This file establishes the full company structure used across all test files:
+--
+--   GlobalTech HQ (root)
+--   ├── Engineering Dept (child)
+--   └── Sales Dept (child)
+--
+-- Role hierarchy in GlobalTech (senior -> junior, i.e. senior inherits junior perms):
+--   ceo -> director -> manager -> employee -> intern
+--   + specialized roles: auditor, accountant, hr_manager, contractor, compliance_officer
+--
+-- Role hierarchy in Engineering:
+--   tech_lead -> engineer
+--
+-- Users:
+--   Alice   — CEO at GlobalTech
+--   Bob     — Director at GlobalTech
+--   Carol   — Manager at GlobalTech
+--   Dave    — Employee at GlobalTech
+--   Eve     — Intern at GlobalTech
+--   Frank   — Contractor at GlobalTech
+--   Grace   — HR Manager at GlobalTech
+--   Heidi   — Auditor at GlobalTech
+--   Ivan    — Accountant at GlobalTech
+--   Judy    — Engineer at Engineering + Sales Rep at Sales (multi-org)
+--   Karl    — No role (unauthorized user)
+--   Leo     — Employee at GlobalTech (used for delegation target)
 -- =============================================================================
 
--- Clean up any previous test
+-- Clean slate
 DROP EXTENSION IF EXISTS pgmorbac CASCADE;
 DROP SCHEMA IF EXISTS morbac CASCADE;
-
--- Install the extension
 CREATE EXTENSION pgmorbac;
 
--- Verify schema and tables exist
-\echo '=== Schema and Tables Created ==='
-SELECT schemaname, tablename
-FROM pg_tables
-WHERE schemaname = 'morbac'
-ORDER BY tablename;
+\echo '=== Setup: Verify schema created ==='
+SELECT tablename FROM pg_tables WHERE schemaname = 'morbac' ORDER BY tablename;
 
+-- ---------------------------------------------------------------------------
+-- ORGANIZATIONS
+-- ---------------------------------------------------------------------------
 \echo ''
 \echo '=== Setup: Organizations ==='
 
--- Create two organizations
 INSERT INTO morbac.orgs (id, name) VALUES
-    ('11111111-1111-1111-1111-111111111111', 'Acme Corp'),
-    ('22222222-2222-2222-2222-222222222222', 'Beta Inc');
+    ('10000000-0000-0000-0000-000000000001', 'GlobalTech HQ'),
+    ('10000000-0000-0000-0000-000000000002', 'Engineering Dept'),
+    ('10000000-0000-0000-0000-000000000003', 'Sales Dept');
 
--- Create hierarchical organization (Acme Subsidiary under Acme Corp)
-INSERT INTO morbac.orgs (id, name, parent_id) VALUES
-    ('33333333-3333-3333-3333-333333333333', 'Acme Subsidiary', '11111111-1111-1111-1111-111111111111');
+-- Engineering and Sales are children of GlobalTech
+UPDATE morbac.orgs SET parent_id = '10000000-0000-0000-0000-000000000001'
+WHERE id IN (
+    '10000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000003'
+);
 
-SELECT
-    o.name,
-    COALESCE(p.name, 'None') as parent_organization
-FROM morbac.orgs o
-LEFT JOIN morbac.orgs p ON o.parent_id = p.id
+SELECT o.name, COALESCE(p.name, '—') AS parent
+FROM morbac.orgs o LEFT JOIN morbac.orgs p ON o.parent_id = p.id
 ORDER BY o.parent_id NULLS FIRST, o.name;
 
+-- ---------------------------------------------------------------------------
+-- ROLES
+-- ---------------------------------------------------------------------------
 \echo ''
 \echo '=== Setup: Roles ==='
 
--- Create roles in Acme Corp
+-- GlobalTech HQ roles
 INSERT INTO morbac.roles (id, org_id, name, description) VALUES
-    ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111', 'admin', 'Administrator role'),
-    ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111', 'employee', 'Regular employee'),
-    ('cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111', 'contractor', 'External contractor'),
-    ('ffffffff-ffff-ffff-ffff-ffffffffffff', '11111111-1111-1111-1111-111111111111', 'viewer', 'Read-only viewer');
+    ('20000000-0001-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'ceo',                'Chief Executive Officer'),
+    ('20000000-0001-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'director',           'Senior Director'),
+    ('20000000-0001-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'manager',            'Department Manager'),
+    ('20000000-0001-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'employee',           'Regular Employee'),
+    ('20000000-0001-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', 'intern',             'Intern'),
+    ('20000000-0001-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', 'auditor',            'Internal Auditor'),
+    ('20000000-0001-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 'accountant',         'Accountant'),
+    ('20000000-0001-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', 'hr_manager',         'Human Resources Manager'),
+    ('20000000-0001-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', 'contractor',         'External Contractor'),
+    ('20000000-0001-0000-0000-000000000010', '10000000-0000-0000-0000-000000000001', 'compliance_officer', 'Compliance Officer');
 
--- Create roles in Beta Inc
+-- Engineering Dept roles
 INSERT INTO morbac.roles (id, org_id, name, description) VALUES
-    ('dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-2222-2222-222222222222', 'manager', 'Manager role'),
-    ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-2222-2222-222222222222', 'staff', 'Staff member');
+    ('20000000-0002-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', 'tech_lead', 'Technical Lead'),
+    ('20000000-0002-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', 'engineer',  'Software Engineer');
 
-SELECT r.name as role, o.name as organization
-FROM morbac.roles r
-JOIN morbac.orgs o ON r.org_id = o.id
+-- Sales Dept roles
+INSERT INTO morbac.roles (id, org_id, name, description) VALUES
+    ('20000000-0003-0000-0000-000000000001', '10000000-0000-0000-0000-000000000003', 'sales_manager', 'Sales Manager'),
+    ('20000000-0003-0000-0000-000000000002', '10000000-0000-0000-0000-000000000003', 'sales_rep',     'Sales Representative');
+
+SELECT r.name AS role, o.name AS organization
+FROM morbac.roles r JOIN morbac.orgs o ON r.org_id = o.id
 ORDER BY o.name, r.name;
 
+-- ---------------------------------------------------------------------------
+-- ROLE HIERARCHY (GlobalTech)
+-- Senior role inherits all permissions granted to junior role
+-- ---------------------------------------------------------------------------
 \echo ''
-\echo '=== Setup: User Role Assignments ==='
+\echo '=== Setup: Role Hierarchy (GlobalTech HQ) ==='
 
--- User Alice (admin at Acme)
-INSERT INTO morbac.user_roles (user_id, role_id, org_id) VALUES
-    ('aaaaaaaa-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', '11111111-1111-1111-1111-111111111111');
+INSERT INTO morbac.role_hierarchy (senior_role_id, junior_role_id) VALUES
+    -- CEO inherits from Director
+    ('20000000-0001-0000-0000-000000000001', '20000000-0001-0000-0000-000000000002'),
+    -- Director inherits from Manager
+    ('20000000-0001-0000-0000-000000000002', '20000000-0001-0000-0000-000000000003'),
+    -- Manager inherits from Employee
+    ('20000000-0001-0000-0000-000000000003', '20000000-0001-0000-0000-000000000004'),
+    -- Employee inherits from Intern
+    ('20000000-0001-0000-0000-000000000004', '20000000-0001-0000-0000-000000000005');
 
--- User Bob (employee at Acme)
-INSERT INTO morbac.user_roles (user_id, role_id, org_id) VALUES
-    ('bbbbbbbb-0000-0000-0000-000000000002', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', '11111111-1111-1111-1111-111111111111');
-
--- User Charlie (contractor at Acme AND staff at Beta - multi-org user)
-INSERT INTO morbac.user_roles (user_id, role_id, org_id) VALUES
-    ('cccccccc-0000-0000-0000-000000000003', 'cccccccc-cccc-cccc-cccc-cccccccccccc', '11111111-1111-1111-1111-111111111111'),
-    ('cccccccc-0000-0000-0000-000000000003', 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', '22222222-2222-2222-2222-222222222222');
-
--- User Diana (manager at Beta)
-INSERT INTO morbac.user_roles (user_id, role_id, org_id) VALUES
-    ('dddddddd-0000-0000-0000-000000000004', 'dddddddd-dddd-dddd-dddd-dddddddddddd', '22222222-2222-2222-2222-222222222222');
+-- Engineering: tech_lead inherits from engineer
+INSERT INTO morbac.role_hierarchy (senior_role_id, junior_role_id) VALUES
+    ('20000000-0002-0000-0000-000000000001', '20000000-0002-0000-0000-000000000002');
 
 SELECT
-    ur.user_id,
-    r.name as role,
-    o.name as organization
+    sr.name AS senior_role,
+    jr.name AS junior_role
+FROM morbac.role_hierarchy rh
+JOIN morbac.roles sr ON sr.id = rh.senior_role_id
+JOIN morbac.roles jr ON jr.id = rh.junior_role_id
+ORDER BY sr.name;
+
+-- ---------------------------------------------------------------------------
+-- USER — ROLE ASSIGNMENTS
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '=== Setup: User-Role Assignments ==='
+
+-- GlobalTech HQ users
+INSERT INTO morbac.user_roles (user_id, role_id, org_id) VALUES
+    -- Alice: CEO
+    ('30000000-0000-0000-0000-000000000001', '20000000-0001-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001'),
+    -- Bob: Director
+    ('30000000-0000-0000-0000-000000000002', '20000000-0001-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001'),
+    -- Carol: Manager
+    ('30000000-0000-0000-0000-000000000003', '20000000-0001-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001'),
+    -- Dave: Employee
+    ('30000000-0000-0000-0000-000000000004', '20000000-0001-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001'),
+    -- Eve: Intern
+    ('30000000-0000-0000-0000-000000000005', '20000000-0001-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001'),
+    -- Frank: Contractor
+    ('30000000-0000-0000-0000-000000000006', '20000000-0001-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001'),
+    -- Grace: HR Manager
+    ('30000000-0000-0000-0000-000000000007', '20000000-0001-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001'),
+    -- Heidi: Auditor
+    ('30000000-0000-0000-0000-000000000008', '20000000-0001-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001'),
+    -- Ivan: Accountant
+    ('30000000-0000-0000-0000-000000000009', '20000000-0001-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001'),
+    -- Leo: Employee (delegation target)
+    ('30000000-0000-0000-0000-000000000012', '20000000-0001-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001');
+
+-- Judy: Engineer at Engineering + Sales Rep at Sales (multi-org user)
+INSERT INTO morbac.user_roles (user_id, role_id, org_id) VALUES
+    ('30000000-0000-0000-0000-000000000010', '20000000-0002-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002'),
+    ('30000000-0000-0000-0000-000000000010', '20000000-0003-0000-0000-000000000002', '10000000-0000-0000-0000-000000000003');
+
+-- Karl: no role (unauthorized user — intentionally not assigned any role)
+
+SELECT ur.user_id, r.name AS role, o.name AS organization
 FROM morbac.user_roles ur
 JOIN morbac.roles r ON ur.role_id = r.id
 JOIN morbac.orgs o ON ur.org_id = o.id
 ORDER BY ur.user_id;
 
+-- ---------------------------------------------------------------------------
+-- ACTIVITIES AND VIEWS
+-- ---------------------------------------------------------------------------
 \echo ''
 \echo '=== Setup: Activities and Views ==='
 
 INSERT INTO morbac.activities (name, description) VALUES
-    ('read', 'Read/view data'),
-    ('write', 'Create/modify data'),
-    ('delete', 'Delete data'),
-    ('approve', 'Approve actions');
+    ('read',    'Read / view data'),
+    ('write',   'Create or modify data'),
+    ('delete',  'Delete data'),
+    ('approve', 'Approve requests or documents'),
+    ('export',  'Export data to external format'),
+    ('audit',   'Audit trail review'),
+    ('manage',  'Full administrative control');
 
 INSERT INTO morbac.views (name, description) VALUES
-    ('documents', 'Document resources'),
-    ('reports', 'Report resources'),
-    ('sensitive_data', 'Sensitive/confidential data'),
-    ('temp_documents', 'Temporary documents'),
-    ('future_documents', 'Future documents'),
-    ('active_documents', 'Active documents');
+    ('documents',     'General company documents'),
+    ('reports',       'Business reports'),
+    ('financial_data','Financial records'),
+    ('hr_data',       'Human resources data'),
+    ('contracts',     'Legal contracts'),
+    ('audit_logs',    'System audit logs'),
+    ('public_data',   'Publicly accessible data');
 
+-- ---------------------------------------------------------------------------
+-- CONTEXTS
+-- ---------------------------------------------------------------------------
 \echo ''
-\echo '=== Setup: Additional Contexts ==='
+\echo '=== Setup: Contexts ==='
 
--- Business hours context (simplified - always true for this test)
-CREATE OR REPLACE FUNCTION morbac.context_business_hours()
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-STABLE
-AS $$
-BEGIN
-    RETURN TRUE;
-END;
+-- business_hours: always TRUE for tests (simulates daytime access)
+CREATE OR REPLACE FUNCTION morbac.ctx_business_hours()
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE AS $$
+BEGIN RETURN TRUE; END;
+$$;
+
+-- after_hours: always FALSE for tests (simulates outside-hours access)
+CREATE OR REPLACE FUNCTION morbac.ctx_after_hours()
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE AS $$
+BEGIN RETURN FALSE; END;
+$$;
+
+-- end_of_quarter: always TRUE for tests (simulates quarterly reporting period)
+CREATE OR REPLACE FUNCTION morbac.ctx_end_of_quarter()
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE AS $$
+BEGIN RETURN TRUE; END;
 $$;
 
 INSERT INTO morbac.contexts (name, description, evaluator) VALUES
-    ('business_hours', 'During business hours', 'morbac.context_business_hours'::regproc);
+    ('business_hours',   'During business hours (Mon–Fri 9–17)',  'morbac.ctx_business_hours'::regproc),
+    ('after_hours',      'Outside business hours',                 'morbac.ctx_after_hours'::regproc),
+    ('end_of_quarter',   'End-of-quarter reporting window',        'morbac.ctx_end_of_quarter'::regproc);
 
--- Weekend context (always false for test)
-CREATE OR REPLACE FUNCTION morbac.context_weekend()
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-STABLE
-AS $$
-BEGIN
-    RETURN FALSE;
-END;
-$$;
+SELECT name, description FROM morbac.contexts ORDER BY name;
 
-INSERT INTO morbac.contexts (name, description, evaluator) VALUES
-    ('weekend', 'During weekend', 'morbac.context_weekend'::regproc);
-
+-- ---------------------------------------------------------------------------
+-- POLICIES (via Policy DSL — resolved by compile_policy)
+-- ---------------------------------------------------------------------------
 \echo ''
-\echo '=== Setup: Policy DSL ==='
+\echo '=== Setup: Policies ==='
 
--- Acme Corp policies
+-- GlobalTech HQ policies
 INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, context_name) VALUES
-    -- Admins can do everything on documents
-    ('Acme Corp', 'admin', 'read', 'documents', 'permission', 'always'),
-    ('Acme Corp', 'admin', 'write', 'documents', 'permission', 'always'),
-    ('Acme Corp', 'admin', 'delete', 'documents', 'permission', 'always'),
+    -- Intern: read public data only
+    ('GlobalTech HQ', 'intern',             'read',   'public_data',    'permission',   'always'),
 
-    -- Employees can read and write documents
-    ('Acme Corp', 'employee', 'read', 'documents', 'permission', 'always'),
-    ('Acme Corp', 'employee', 'write', 'documents', 'permission', 'business_hours'),
+    -- Employee: read documents and reports; write documents only during business hours
+    ('GlobalTech HQ', 'employee',           'read',   'documents',      'permission',   'always'),
+    ('GlobalTech HQ', 'employee',           'write',  'documents',      'permission',   'business_hours'),
+    ('GlobalTech HQ', 'employee',           'read',   'reports',        'permission',   'always'),
+    ('GlobalTech HQ', 'employee',           'read',   'public_data',    'permission',   'always'),
 
-    -- Contractors can only read documents
-    ('Acme Corp', 'contractor', 'read', 'documents', 'permission', 'always'),
+    -- Obligation: employees must review reports weekly
+    ('GlobalTech HQ', 'employee',           'read',   'reports',        'obligation',   'always'),
 
-    -- PROHIBITION: Contractors cannot access sensitive data
-    ('Acme Corp', 'contractor', 'read', 'sensitive_data', 'prohibition', 'always'),
-    ('Acme Corp', 'contractor', 'write', 'sensitive_data', 'prohibition', 'always'),
+    -- Manager: approve and delete documents; read financial data
+    ('GlobalTech HQ', 'manager',            'approve','documents',      'permission',   'always'),
+    ('GlobalTech HQ', 'manager',            'delete', 'documents',      'permission',   'always'),
+    ('GlobalTech HQ', 'manager',            'read',   'financial_data', 'permission',   'always'),
 
-    -- OBLIGATION: Employees must review reports weekly
-    ('Acme Corp', 'employee', 'read', 'reports', 'obligation', 'always'),
+    -- HR Manager: full access to HR data
+    ('GlobalTech HQ', 'hr_manager',         'read',   'hr_data',        'permission',   'always'),
+    ('GlobalTech HQ', 'hr_manager',         'write',  'hr_data',        'permission',   'always'),
+    ('GlobalTech HQ', 'hr_manager',         'delete', 'hr_data',        'permission',   'always'),
 
-    -- Admins can access reports
-    ('Acme Corp', 'admin', 'read', 'reports', 'permission', 'always'),
-    ('Acme Corp', 'admin', 'approve', 'reports', 'permission', 'always');
+    -- Auditor: read audit logs, financial data, and documents
+    ('GlobalTech HQ', 'auditor',            'read',   'audit_logs',     'permission',   'always'),
+    ('GlobalTech HQ', 'auditor',            'read',   'financial_data', 'permission',   'always'),
+    ('GlobalTech HQ', 'auditor',            'read',   'documents',      'permission',   'always'),
 
--- Beta Inc policies
+    -- Accountant: read and write financial data
+    ('GlobalTech HQ', 'accountant',         'read',   'financial_data', 'permission',   'always'),
+    ('GlobalTech HQ', 'accountant',         'write',  'financial_data', 'permission',   'always'),
+
+    -- Contractor: read documents; PROHIBITED from financial and HR data
+    ('GlobalTech HQ', 'contractor',         'read',   'documents',      'permission',   'always'),
+    ('GlobalTech HQ', 'contractor',         'read',   'financial_data', 'prohibition',  'always'),
+    ('GlobalTech HQ', 'contractor',         'read',   'hr_data',        'prohibition',  'always'),
+
+    -- Compliance Officer: read audit logs and financial data
+    ('GlobalTech HQ', 'compliance_officer', 'read',   'audit_logs',     'permission',   'always'),
+    ('GlobalTech HQ', 'compliance_officer', 'read',   'financial_data', 'permission',   'always'),
+
+    -- Recommendation: staff should review reports end of quarter
+    ('GlobalTech HQ', 'employee',           'read',   'reports',        'recommendation','end_of_quarter');
+
+-- Engineering Dept policies
 INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, context_name) VALUES
-    -- Managers have full access
-    ('Beta Inc', 'manager', 'read', 'documents', 'permission', 'always'),
-    ('Beta Inc', 'manager', 'write', 'documents', 'permission', 'always'),
-    ('Beta Inc', 'manager', 'read', 'reports', 'permission', 'always'),
+    ('Engineering Dept', 'engineer',  'read',    'documents', 'permission', 'always'),
+    ('Engineering Dept', 'engineer',  'write',   'documents', 'permission', 'always'),
+    ('Engineering Dept', 'tech_lead', 'approve', 'documents', 'permission', 'always');
 
-    -- Staff can read documents
-    ('Beta Inc', 'staff', 'read', 'documents', 'permission', 'always'),
+-- Sales Dept policies
+INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, context_name) VALUES
+    ('Sales Dept', 'sales_rep',     'read',    'documents', 'permission', 'always'),
+    ('Sales Dept', 'sales_rep',     'write',   'contracts', 'permission', 'always'),
+    ('Sales Dept', 'sales_manager', 'read',    'reports',   'permission', 'always'),
+    ('Sales Dept', 'sales_manager', 'approve', 'contracts', 'permission', 'always');
 
-    -- PROHIBITION: No document modifications on weekends (example)
-    ('Beta Inc', 'staff', 'write', 'documents', 'prohibition', 'weekend'),
-
-    -- RECOMMENDATION: Staff should review reports
-    ('Beta Inc', 'staff', 'read', 'reports', 'recommendation', 'always');
-
--- Compile policy
+-- Compile all policies into rules
+\echo ''
+\echo '=== Setup: Compiling Policies ==='
 SELECT * FROM morbac.compile_policy();
+
+-- ---------------------------------------------------------------------------
+-- Test infrastructure
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '=== Setup: Test Infrastructure ==='
+
+-- Disable auth cache so state changes between calls are always reflected
+SELECT morbac.set_config('cache_ttl_seconds', '0');
+
+-- morbac.t(label, actual, expected) — boolean assertion
+CREATE OR REPLACE FUNCTION morbac.t(label TEXT, actual BOOLEAN, expect BOOLEAN)
+RETURNS TEXT LANGUAGE sql STABLE AS $$
+    SELECT CASE WHEN actual IS NOT DISTINCT FROM expect
+                THEN 'CHECK PASS: ' || label
+                ELSE 'CHECK FAIL: ' || label
+                     || ' (expected ' || expect::text || ', got ' || COALESCE(actual::text, 'NULL') || ')'
+           END;
+$$;
+
+-- morbac.t_null(label, actual) — assert value is NULL
+CREATE OR REPLACE FUNCTION morbac.t_null(label TEXT, actual TEXT)
+RETURNS TEXT LANGUAGE sql STABLE AS $$
+    SELECT CASE WHEN actual IS NULL
+                THEN 'CHECK PASS: ' || label
+                ELSE 'CHECK FAIL: ' || label || ' (expected NULL, got: ' || actual || ')'
+           END;
+$$;
+
+-- morbac.t_not_null(label, actual) — assert value is NOT NULL
+CREATE OR REPLACE FUNCTION morbac.t_not_null(label TEXT, actual TEXT)
+RETURNS TEXT LANGUAGE sql STABLE AS $$
+    SELECT CASE WHEN actual IS NOT NULL
+                THEN 'CHECK PASS: ' || label
+                ELSE 'CHECK FAIL: ' || label || ' (expected a value, got NULL)'
+           END;
+$$;
+
+-- morbac.t_eq(label, actual, expected) — assert two numeric values are equal
+CREATE OR REPLACE FUNCTION morbac.t_eq(label TEXT, actual NUMERIC, expect NUMERIC)
+RETURNS TEXT LANGUAGE sql STABLE AS $$
+    SELECT CASE WHEN actual = expect
+                THEN 'CHECK PASS: ' || label
+                ELSE 'CHECK FAIL: ' || label
+                     || ' (expected ' || expect || ', got ' || actual || ')'
+           END;
+$$;
 
 \echo ''
 \echo '=== Setup Complete ==='
+\echo '    Organizations : GlobalTech HQ, Engineering Dept, Sales Dept'
+\echo '    Roles         : 14 across 3 orgs'
+\echo '    Users         : Alice, Bob, Carol, Dave, Eve, Frank, Grace, Heidi, Ivan, Judy, Karl, Leo'
+\echo '    Activities    : read, write, delete, approve, export, audit, manage'
+\echo '    Views         : documents, reports, financial_data, hr_data, contracts, audit_logs, public_data'
+\echo '    Contexts      : always (true), business_hours (true), after_hours (false), end_of_quarter (true)'

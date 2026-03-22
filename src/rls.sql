@@ -4,7 +4,7 @@
 -- Helper functions for Row-Level Security policies
 -- Compatible with PostgREST
 
--- Get current user ID from request header
+-- Get current user ID from session variable
 CREATE OR REPLACE FUNCTION morbac.current_user_id()
 RETURNS UUID
 LANGUAGE plpgsql
@@ -13,8 +13,8 @@ AS $$
 DECLARE
     v_user_id TEXT;
 BEGIN
-    -- Read from PostgREST request.header.x-user-id setting
-    v_user_id := current_setting('request.header.x-user-id', TRUE);
+    -- Read from morbac.user_id GUC (set via SET morbac.user_id = '...' or PostgREST header mapping)
+    v_user_id := current_setting('morbac.user_id', TRUE);
 
     IF v_user_id IS NULL OR v_user_id = '' THEN
         RETURN NULL;
@@ -28,9 +28,9 @@ END;
 $$;
 
 COMMENT ON FUNCTION morbac.current_user_id() IS
-'Returns current user ID from request.header.x-user-id (PostgREST compatible)';
+'Returns current user ID from morbac.user_id session variable';
 
--- Get current organization ID from request header
+-- Get current organization ID from session variable
 CREATE OR REPLACE FUNCTION morbac.current_org_id()
 RETURNS UUID
 LANGUAGE plpgsql
@@ -39,8 +39,8 @@ AS $$
 DECLARE
     v_org_id TEXT;
 BEGIN
-    -- Read from PostgREST request.header.x-org-id setting
-    v_org_id := current_setting('request.header.x-org-id', TRUE);
+    -- Read from morbac.org_id GUC (set via SET morbac.org_id = '...' or PostgREST header mapping)
+    v_org_id := current_setting('morbac.org_id', TRUE);
 
     IF v_org_id IS NULL OR v_org_id = '' THEN
         RETURN NULL;
@@ -54,7 +54,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION morbac.current_org_id() IS
-'Returns current organization ID from request.header.x-org-id (PostgREST compatible)';
+'Returns current organization ID from morbac.org_id session variable';
 
 -- RLS check function
 CREATE OR REPLACE FUNCTION morbac.rls_check(

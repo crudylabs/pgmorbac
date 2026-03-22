@@ -67,10 +67,10 @@ BEGIN
         WHERE ur.user_id = p_user_id
           AND ur.org_id = p_org_id
         UNION
-        -- Recursive case: senior roles (roles that inherit from assigned roles)
-        SELECT rh.senior_role_id, er.depth + 1
+        -- Recursive case: junior roles (inherited by the user's assigned roles)
+        SELECT rh.junior_role_id, er.depth + 1
         FROM effective_roles er
-        INNER JOIN morbac.role_hierarchy rh ON rh.junior_role_id = er.role_id
+        INNER JOIN morbac.role_hierarchy rh ON rh.senior_role_id = er.role_id
     )
     SELECT DISTINCT ON (effective_roles.role_id) effective_roles.role_id, effective_roles.depth
     FROM effective_roles
@@ -207,10 +207,10 @@ BEGIN
 
                 UNION
 
-                -- Role hierarchy (senior roles)
-                SELECT rh.senior_role_id, er.source || '_inherited', er.depth + 1
+                -- Role hierarchy (junior roles inherited by user's roles)
+                SELECT rh.junior_role_id, er.source || '_inherited', er.depth + 1
                 FROM effective_roles er
-                INNER JOIN morbac.role_hierarchy rh ON rh.junior_role_id = er.role_id
+                INNER JOIN morbac.role_hierarchy rh ON rh.senior_role_id = er.role_id
     )
     SELECT DISTINCT ON (effective_roles.role_id) effective_roles.role_id, effective_roles.source, effective_roles.depth
     FROM effective_roles
@@ -277,9 +277,9 @@ BEGIN
         FROM inherited_roles ir
         INNER JOIN morbac.role_hierarchy rh ON rh.senior_role_id = ir.role_id
     )
-    SELECT DISTINCT ON (role_id) role_id, depth
+    SELECT DISTINCT ON (inherited_roles.role_id) inherited_roles.role_id, inherited_roles.depth
     FROM inherited_roles
-    ORDER BY role_id, depth;
+    ORDER BY inherited_roles.role_id, inherited_roles.depth;
 END;
 $$;
 
