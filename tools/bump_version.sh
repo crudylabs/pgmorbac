@@ -33,7 +33,7 @@ if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
     exit 0
 fi
 
-echo "Bumping version: $OLD_VERSION → $NEW_VERSION"
+echo "Bumping version: $OLD_VERSION -> $NEW_VERSION"
 
 # --- pgmorbac.control ---
 sed -i.bak "s/default_version = '$OLD_VERSION'/default_version = '$NEW_VERSION'/" "$CONTROL_FILE"

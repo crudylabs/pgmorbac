@@ -498,6 +498,33 @@ SELECT morbac.check_cardinality_violation(admin_role_id, org_id);
 -- Returns: error message if would violate constraint, NULL if valid
 ```
 
+### Rule Conflict Detection
+
+When inserting or updating a rule, pgmorbac automatically warns if the new rule conflicts with an existing one due to modality precedence. Conflicts are non-blocking (the insert succeeds) but a `WARNING` is emitted so you can catch unintentional policy contradictions.
+
+A conflict is flagged when two rules share the same `(org, role, activity, view, context)` tuple and their modalities create a dead rule:
+
+| New modality | Existing modality | Issue |
+|---|---|---|
+| `permission` | `prohibition` | permission will always be overridden |
+| `obligation` | `prohibition` | obligation will always be voided |
+| `recommendation` | `prohibition` or `obligation` | recommendation will always be voided |
+| `prohibition` | any | the existing rule(s) become dead or voided |
+
+Hierarchy-based overlaps (e.g. a permission on `manage` and a prohibition on `write`, where `write` is a sub-activity of `manage`) are intentional design and not flagged.
+
+You can also call `detect_rule_conflicts()` explicitly before inserting:
+
+```sql
+-- Check for conflicts before inserting
+SELECT * FROM morbac.detect_rule_conflicts(
+    org_id, role_id, 'read', 'documents',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'permission'
+);
+-- Returns empty if no conflict, or rows describing each conflicting rule
+```
+
 ### Derived Roles
 
 Roles computed dynamically from application data.
@@ -697,6 +724,8 @@ SELECT * FROM morbac.get_org_scope(org_uuid, 'subtree', 2);
 **`check_sod_violation(user_id, org_id)`**: Returns empty array if valid, or array of conflicting role name pairs if violations exist.
 
 **`check_cardinality_violation(role_id, org_id)`**: Returns error message if constraint violated, NULL if valid.
+
+**`detect_rule_conflicts(org_id, role_id, activity, view, context_id, modality, exclude_id?)`**: Returns rows describing rules that directly conflict with the given tuple due to modality precedence. `exclude_id` is used on UPDATE to skip the rule being modified. Also fires automatically as a non-blocking trigger warning on every INSERT or UPDATE to `morbac.rules`.
 
 ### Administration Functions
 

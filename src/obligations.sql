@@ -51,8 +51,8 @@ BEGIN
           FROM morbac.rules p
           WHERE p.org_id = p_org_id
             AND p.modality = 'prohibition'
-            AND p.activity IN (SELECT activity FROM morbac.get_effective_activities(r.activity))
-            AND p.view IN (SELECT view FROM morbac.get_effective_views(r.view))
+            AND p.activity IN (SELECT ea.activity FROM morbac.get_effective_activities(r.activity) ea)
+            AND p.view IN (SELECT ev.view FROM morbac.get_effective_views(r.view) ev)
             AND p.role_id IN (
                 SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, p_org_id)
             )
@@ -108,8 +108,8 @@ BEGIN
           FROM morbac.rules p
           WHERE p.org_id = p_org_id
             AND p.modality IN ('prohibition', 'obligation')
-            AND p.activity IN (SELECT activity FROM morbac.get_effective_activities(r.activity))
-            AND p.view IN (SELECT view FROM morbac.get_effective_views(r.view))
+            AND p.activity IN (SELECT ea.activity FROM morbac.get_effective_activities(r.activity) ea)
+            AND p.view IN (SELECT ev.view FROM morbac.get_effective_views(r.view) ev)
             AND p.role_id IN (
                 SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, p_org_id)
             )

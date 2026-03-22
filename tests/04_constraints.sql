@@ -5,6 +5,7 @@
 --   1. Separation of Duty (SoD) — mutually exclusive roles
 --   2. Negative role assignments — explicit blocking of a role
 --   3. Role cardinality constraints — min/max users per role
+--   4. Rule conflict detection — modality conflicts on same tuple
 --
 -- Scenario:
 --   - auditor and accountant are mutually exclusive (no one can hold both)
@@ -244,6 +245,135 @@ SELECT morbac.t_null('Checking cardinality for employee role (no constraint) —
 DELETE FROM morbac.user_roles
 WHERE role_id = '20000000-0001-0000-0000-000000000010'
   AND user_id = '30000000-0000-0000-0000-000000000004';
+
+-- ---------------------------------------------------------------------------
+-- Section 4: Rule conflict detection
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '--- 4. Rule conflict detection ---'
+
+-- Insert a permission rule for employee on read/contracts (no existing conflict)
+INSERT INTO morbac.rules (id, org_id, role_id, activity, view, context_id, modality)
+VALUES (
+    'f0000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0001-0000-0000-000000000004', -- employee
+    'read', 'contracts',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'permission'
+);
+
+-- No conflict yet — only a permission exists
+SELECT morbac.t_eq('detect_rule_conflicts: permission alone — no conflicts',
+    (SELECT COUNT(*) FROM morbac.detect_rule_conflicts(
+        '10000000-0000-0000-0000-000000000001',
+        '20000000-0001-0000-0000-000000000004',
+        'read', 'contracts',
+        (SELECT id FROM morbac.contexts WHERE name = 'always'),
+        'permission'
+    ))::bigint,
+    0);
+
+-- Insert a prohibition for the same tuple (conflicts with the permission)
+INSERT INTO morbac.rules (id, org_id, role_id, activity, view, context_id, modality)
+VALUES (
+    'f0000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0001-0000-0000-000000000004',
+    'read', 'contracts',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'prohibition'
+);
+
+-- Prohibition conflicts with the existing permission
+SELECT morbac.t_eq('detect_rule_conflicts: prohibition conflicts with existing permission',
+    (SELECT COUNT(*) FROM morbac.detect_rule_conflicts(
+        '10000000-0000-0000-0000-000000000001',
+        '20000000-0001-0000-0000-000000000004',
+        'read', 'contracts',
+        (SELECT id FROM morbac.contexts WHERE name = 'always'),
+        'prohibition'
+    ))::bigint,
+    1);
+
+-- The conflicting rule is the permission
+SELECT morbac.t('detect_rule_conflicts: conflicting rule is the permission',
+    EXISTS(
+        SELECT 1 FROM morbac.detect_rule_conflicts(
+            '10000000-0000-0000-0000-000000000001',
+            '20000000-0001-0000-0000-000000000004',
+            'read', 'contracts',
+            (SELECT id FROM morbac.contexts WHERE name = 'always'),
+            'prohibition'
+        )
+        WHERE conflicting_modality = 'permission'
+    ), TRUE);
+
+-- Insert an obligation for the same tuple — conflicts with the prohibition
+INSERT INTO morbac.rules (id, org_id, role_id, activity, view, context_id, modality)
+VALUES (
+    'f0000000-0000-0000-0000-000000000003',
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0001-0000-0000-000000000004',
+    'read', 'contracts',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'obligation'
+);
+
+-- Obligation conflicts with existing prohibition
+SELECT morbac.t_eq('detect_rule_conflicts: obligation conflicts with existing prohibition',
+    (SELECT COUNT(*) FROM morbac.detect_rule_conflicts(
+        '10000000-0000-0000-0000-000000000001',
+        '20000000-0001-0000-0000-000000000004',
+        'read', 'contracts',
+        (SELECT id FROM morbac.contexts WHERE name = 'always'),
+        'obligation'
+    ))::bigint,
+    1);
+
+-- Insert a recommendation — conflicts with both obligation and prohibition
+INSERT INTO morbac.rules (id, org_id, role_id, activity, view, context_id, modality)
+VALUES (
+    'f0000000-0000-0000-0000-000000000004',
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0001-0000-0000-000000000004',
+    'read', 'contracts',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'recommendation'
+);
+
+-- Recommendation conflicts with both prohibition and obligation
+SELECT morbac.t_eq('detect_rule_conflicts: recommendation conflicts with prohibition and obligation',
+    (SELECT COUNT(*) FROM morbac.detect_rule_conflicts(
+        '10000000-0000-0000-0000-000000000001',
+        '20000000-0001-0000-0000-000000000004',
+        'read', 'contracts',
+        (SELECT id FROM morbac.contexts WHERE name = 'always'),
+        'recommendation'
+    ))::bigint,
+    2);
+
+-- No conflict between permission and recommendation (they coexist meaningfully)
+SELECT morbac.t_eq('detect_rule_conflicts: permission vs recommendation — no conflict',
+    (SELECT COUNT(*) FROM morbac.detect_rule_conflicts(
+        '10000000-0000-0000-0000-000000000001',
+        '20000000-0001-0000-0000-000000000004',
+        'read', 'contracts',
+        (SELECT id FROM morbac.contexts WHERE name = 'always'),
+        'permission',
+        'f0000000-0000-0000-0000-000000000001'  -- exclude self
+    )
+    WHERE conflicting_modality = 'recommendation')::bigint,
+    0);
+
+-- Clean up
+DELETE FROM morbac.rules
+WHERE id IN (
+    'f0000000-0000-0000-0000-000000000001',
+    'f0000000-0000-0000-0000-000000000002',
+    'f0000000-0000-0000-0000-000000000003',
+    'f0000000-0000-0000-0000-000000000004'
+);
 
 \echo ''
 \echo '=== Constraint Tests Completed ==='
