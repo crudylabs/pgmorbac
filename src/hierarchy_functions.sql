@@ -52,6 +52,92 @@ $$;
 COMMENT ON FUNCTION morbac.get_org_descendants(UUID) IS
 'Returns all descendant organizations (including self) with depth in hierarchy';
 
+-- Get a named scope of organizations relative to a given org
+--
+-- Supported scopes:
+--   'self'        — the org itself only (depth = 0)
+--   'children'    — direct children only (descendants at depth = 1)
+--   'descendants' — all descendants, excluding self (depth > 0)
+--   'subtree'     — self + all descendants (equivalent to get_org_descendants)
+--   'parent'      — direct parent only (ancestor at depth = 1)
+--   'ancestors'   — all ancestors, excluding self (depth > 0)
+--   'lineage'     — self + all ancestors (equivalent to get_org_ancestors)
+--   'root'        — topmost ancestor only (max depth ancestor)
+--
+-- Optional p_max_depth limits how many levels are traversed (NULL = unlimited).
+-- For upward scopes (parent/ancestors/lineage/root) depth counts steps toward root.
+-- For downward scopes (children/descendants/subtree) depth counts steps toward leaves.
+CREATE OR REPLACE FUNCTION morbac.get_org_scope(
+    p_org_id    UUID,
+    p_scope     TEXT,
+    p_max_depth INTEGER DEFAULT NULL
+)
+RETURNS TABLE(org_id UUID, depth INTEGER)
+LANGUAGE plpgsql
+STABLE
+AS $$
+BEGIN
+    CASE p_scope
+        WHEN 'self' THEN
+            RETURN QUERY
+            SELECT p_org_id, 0;
+
+        WHEN 'children' THEN
+            RETURN QUERY
+            SELECT d.org_id, d.depth
+            FROM morbac.get_org_descendants(p_org_id) d
+            WHERE d.depth = 1
+              AND (p_max_depth IS NULL OR d.depth <= p_max_depth);
+
+        WHEN 'descendants' THEN
+            RETURN QUERY
+            SELECT d.org_id, d.depth
+            FROM morbac.get_org_descendants(p_org_id) d
+            WHERE d.depth > 0
+              AND (p_max_depth IS NULL OR d.depth <= p_max_depth);
+
+        WHEN 'subtree' THEN
+            RETURN QUERY
+            SELECT d.org_id, d.depth
+            FROM morbac.get_org_descendants(p_org_id) d
+            WHERE (p_max_depth IS NULL OR d.depth <= p_max_depth);
+
+        WHEN 'parent' THEN
+            RETURN QUERY
+            SELECT a.org_id, a.depth
+            FROM morbac.get_org_ancestors(p_org_id) a
+            WHERE a.depth = 1
+              AND (p_max_depth IS NULL OR a.depth <= p_max_depth);
+
+        WHEN 'ancestors' THEN
+            RETURN QUERY
+            SELECT a.org_id, a.depth
+            FROM morbac.get_org_ancestors(p_org_id) a
+            WHERE a.depth > 0
+              AND (p_max_depth IS NULL OR a.depth <= p_max_depth);
+
+        WHEN 'lineage' THEN
+            RETURN QUERY
+            SELECT a.org_id, a.depth
+            FROM morbac.get_org_ancestors(p_org_id) a
+            WHERE (p_max_depth IS NULL OR a.depth <= p_max_depth);
+
+        WHEN 'root' THEN
+            RETURN QUERY
+            SELECT a.org_id, a.depth
+            FROM morbac.get_org_ancestors(p_org_id) a
+            ORDER BY a.depth DESC
+            LIMIT 1;
+
+        ELSE
+            RAISE EXCEPTION 'get_org_scope: unknown scope "%". Valid scopes: self, children, descendants, subtree, parent, ancestors, lineage, root', p_scope;
+    END CASE;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.get_org_scope(UUID, TEXT, INTEGER) IS
+'Returns a named set of organizations relative to p_org_id. Scopes: self, children, descendants, subtree, parent, ancestors, lineage, root. Optional p_max_depth limits traversal depth.';
+
 -- Get all roles a user effectively has (direct + inherited via role hierarchy)
 CREATE OR REPLACE FUNCTION morbac.get_effective_roles(p_user_id UUID, p_org_id UUID)
 RETURNS TABLE(role_id UUID, depth INTEGER)

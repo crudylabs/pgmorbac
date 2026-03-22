@@ -322,21 +322,72 @@ SELECT * FROM morbac.compile_policy();
 
 ### Organization Rule Scope
 
-Rules in pgmorbac are always scoped to an organization (`org_id`).
+Rules in pgmorbac are always scoped to a single organization (`org_id`). To apply a rule across multiple organizations in a hierarchy, use `get_org_scope(org_id, scope)`, which returns a set of `(org_id, depth)` rows for the named scope relative to the given org.
 
-- To apply a rule only to a specific org, insert it with that `org_id`.
-- To apply a rule to all descendants, use `get_org_descendants(org_id)`:
-    ```sql
-    INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
-    SELECT descendant_id, :role_id, :activity, :view, 'permission'
-    FROM morbac.get_org_descendants(:org_id)
-    UNION ALL
-    SELECT :org_id, :role_id, :activity, :view, 'permission';
-    ```
-- To reference parent orgs, use `get_org_ancestors(org_id)`.
-- For cross-organization permissions or admin delegation, use `cross_org_rules` and `admin_rules`.
+| Scope | Returns |
+|---|---|
+| `'self'` | The org itself only |
+| `'children'` | Direct children only (depth = 1) |
+| `'descendants'` | All descendants, excluding self |
+| `'subtree'` | Self + all descendants |
+| `'parent'` | Direct parent only |
+| `'ancestors'` | All ancestors, excluding self |
+| `'lineage'` | Self + all ancestors |
+| `'root'` | Topmost ancestor only |
 
-See API Reference for details on these helper functions and tables.
+An optional third argument `p_max_depth` limits how many levels are traversed.
+
+**Example: Entire subtree (org + all subsidiaries)**
+
+A holding company grants its auditor role read access across all subsidiaries:
+
+```sql
+INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
+SELECT org_id, :role_id, 'read', 'financials', 'permission'
+FROM morbac.get_org_scope(:holding_org_id, 'subtree');
+```
+
+**Example: Direct children only**
+
+A regional manager role applies only to first-level divisions, not deeper sub-divisions:
+
+```sql
+INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
+SELECT org_id, :role_id, 'manage', 'teams', 'permission'
+FROM morbac.get_org_scope(:region_org_id, 'children');
+```
+
+**Example: Two levels deep**
+
+A policy that covers a org, its direct children, and their children:
+
+```sql
+INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
+SELECT org_id, :role_id, 'read', 'documents', 'permission'
+FROM morbac.get_org_scope(:org_id, 'subtree', 2);
+```
+
+**Example: Root org only**
+
+A compliance rule attached to the top-level org, regardless of where you start:
+
+```sql
+INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
+SELECT org_id, :role_id, 'audit', 'all_data', 'permission'
+FROM morbac.get_org_scope(:any_child_org_id, 'root');
+```
+
+**Example: All ancestors (upward propagation)**
+
+A report created in a child org becomes visible to all parent orgs:
+
+```sql
+INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
+SELECT org_id, :role_id, 'read', 'reports', 'permission'
+FROM morbac.get_org_scope(:child_org_id, 'ancestors');
+```
+
+For cross-organization access between unrelated orgs, use `cross_org_rules` and `admin_rules`.
 
 ### Hierarchies
 
@@ -613,9 +664,16 @@ SELECT morbac.is_allowed(user_uuid, org_uuid, 'read', 'documents');
 
 ### Hierarchy Functions
 
-**`get_org_ancestors(org_id)`**: Returns all parent organizations with depth.
+**`get_org_ancestors(org_id)`**: Returns all parent organizations with depth (including self at depth 0).
 
-**`get_org_descendants(org_id)`**: Returns all child organizations with depth.
+**`get_org_descendants(org_id)`**: Returns all child organizations with depth (including self at depth 0).
+
+**`get_org_scope(org_id, scope, max_depth?)`**: Returns a named set of organizations relative to `org_id`. Scope values: `self`, `children`, `descendants`, `subtree`, `parent`, `ancestors`, `lineage`, `root`. Optional `max_depth` limits traversal depth.
+
+```sql
+-- All orgs in the subtree, up to 2 levels deep
+SELECT * FROM morbac.get_org_scope(org_uuid, 'subtree', 2);
+```
 
 **`get_inherited_roles(role_id)`**: Returns all junior roles (transitive).
 

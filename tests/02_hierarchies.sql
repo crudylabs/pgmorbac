@@ -361,5 +361,163 @@ SELECT morbac.t('Dave (GlobalTech employee) reads Engineering docs [no cross-org
         'read', 'documents'
     ), FALSE);
 
+-- ---------------------------------------------------------------------------
+-- Section 6: get_org_scope — named scope helper
+-- ---------------------------------------------------------------------------
+-- Org tree used in tests:
+--   GlobalTech HQ (root)   id: 10000000-0000-0000-0000-000000000001
+--   ├── Engineering Dept   id: 10000000-0000-0000-0000-000000000002
+--   └── Sales Dept         id: 10000000-0000-0000-0000-000000000003
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '--- 6. get_org_scope ---'
+
+-- 'self' — always returns exactly the org itself
+SELECT morbac.t_eq('scope self (root) returns 1 row',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'self'))::bigint, 1);
+
+SELECT morbac.t_eq('scope self (leaf) returns 1 row',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'self'))::bigint, 1);
+
+SELECT morbac.t('scope self returns the org itself at depth 0',
+    EXISTS(
+        SELECT 1 FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'self')
+        WHERE org_id = '10000000-0000-0000-0000-000000000002' AND depth = 0
+    ), TRUE);
+
+-- 'children' — direct children only (depth = 1 descendants)
+SELECT morbac.t_eq('scope children of root returns 2 rows (Engineering + Sales)',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'children'))::bigint, 2);
+
+SELECT morbac.t_eq('scope children of leaf returns 0 rows',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'children'))::bigint, 0);
+
+SELECT morbac.t('scope children does not include self (root)',
+    NOT EXISTS(
+        SELECT 1 FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'children')
+        WHERE org_id = '10000000-0000-0000-0000-000000000001'
+    ), TRUE);
+
+SELECT morbac.t('scope children includes Engineering at depth 1',
+    EXISTS(
+        SELECT 1 FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'children')
+        WHERE org_id = '10000000-0000-0000-0000-000000000002' AND depth = 1
+    ), TRUE);
+
+-- 'descendants' — all descendants excluding self
+SELECT morbac.t_eq('scope descendants of root returns 2 rows (Engineering + Sales, no self)',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'descendants'))::bigint, 2);
+
+SELECT morbac.t('scope descendants does not include self',
+    NOT EXISTS(
+        SELECT 1 FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'descendants')
+        WHERE org_id = '10000000-0000-0000-0000-000000000001'
+    ), TRUE);
+
+SELECT morbac.t_eq('scope descendants of leaf returns 0 rows',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'descendants'))::bigint, 0);
+
+-- 'subtree' — self + all descendants
+SELECT morbac.t_eq('scope subtree of root returns 3 rows (self + Engineering + Sales)',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'subtree'))::bigint, 3);
+
+SELECT morbac.t('scope subtree includes self at depth 0',
+    EXISTS(
+        SELECT 1 FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'subtree')
+        WHERE org_id = '10000000-0000-0000-0000-000000000001' AND depth = 0
+    ), TRUE);
+
+SELECT morbac.t_eq('scope subtree of leaf returns 1 row (self only)',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'subtree'))::bigint, 1);
+
+-- 'parent' — direct parent only
+SELECT morbac.t_eq('scope parent of Engineering returns 1 row (GlobalTech HQ)',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'parent'))::bigint, 1);
+
+SELECT morbac.t('scope parent of Engineering returns GlobalTech HQ at depth 1',
+    EXISTS(
+        SELECT 1 FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'parent')
+        WHERE org_id = '10000000-0000-0000-0000-000000000001' AND depth = 1
+    ), TRUE);
+
+SELECT morbac.t_eq('scope parent of root returns 0 rows (no parent)',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'parent'))::bigint, 0);
+
+-- 'ancestors' — all ancestors excluding self
+SELECT morbac.t_eq('scope ancestors of Engineering returns 1 row (GlobalTech HQ only)',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'ancestors'))::bigint, 1);
+
+SELECT morbac.t('scope ancestors does not include self',
+    NOT EXISTS(
+        SELECT 1 FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'ancestors')
+        WHERE org_id = '10000000-0000-0000-0000-000000000002'
+    ), TRUE);
+
+SELECT morbac.t_eq('scope ancestors of root returns 0 rows',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'ancestors'))::bigint, 0);
+
+-- 'lineage' — self + all ancestors
+SELECT morbac.t_eq('scope lineage of Engineering returns 2 rows (self + GlobalTech HQ)',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'lineage'))::bigint, 2);
+
+SELECT morbac.t('scope lineage includes self at depth 0',
+    EXISTS(
+        SELECT 1 FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'lineage')
+        WHERE org_id = '10000000-0000-0000-0000-000000000002' AND depth = 0
+    ), TRUE);
+
+SELECT morbac.t_eq('scope lineage of root returns 1 row (self only)',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'lineage'))::bigint, 1);
+
+-- 'root' — topmost ancestor only
+SELECT morbac.t_eq('scope root of Engineering returns 1 row',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'root'))::bigint, 1);
+
+SELECT morbac.t('scope root of Engineering returns GlobalTech HQ',
+    EXISTS(
+        SELECT 1 FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'root')
+        WHERE org_id = '10000000-0000-0000-0000-000000000001'
+    ), TRUE);
+
+SELECT morbac.t_eq('scope root of root returns the root itself',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'root'))::bigint, 1);
+
+SELECT morbac.t('scope root of root returns the org itself',
+    EXISTS(
+        SELECT 1 FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'root')
+        WHERE org_id = '10000000-0000-0000-0000-000000000001'
+    ), TRUE);
+
+-- p_max_depth — depth limiting
+SELECT morbac.t_eq('scope subtree max_depth=0 returns only self',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'subtree', 0))::bigint, 1);
+
+SELECT morbac.t_eq('scope subtree max_depth=1 returns self + direct children',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'subtree', 1))::bigint, 3);
+
+SELECT morbac.t_eq('scope descendants max_depth=1 returns only direct children',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'descendants', 1))::bigint, 2);
+
+SELECT morbac.t_eq('scope lineage max_depth=0 returns only self',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'lineage', 0))::bigint, 1);
+
+SELECT morbac.t_eq('scope ancestors max_depth=1 returns only direct parent',
+    (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'ancestors', 1))::bigint, 1);
+
+-- Unknown scope raises an error
+DO $$
+BEGIN
+    PERFORM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'invalid_scope');
+    RAISE EXCEPTION 'CHECK FAIL: unknown scope should have raised an error';
+EXCEPTION
+    WHEN OTHERS THEN
+        IF SQLERRM LIKE '%unknown scope%' THEN
+            RAISE NOTICE 'CHECK PASS: unknown scope raises error as expected';
+        ELSE
+            RAISE EXCEPTION 'CHECK FAIL: unexpected error: %', SQLERRM;
+        END IF;
+END;
+$$;
+
 \echo ''
 \echo '=== Hierarchy Tests Completed ==='
