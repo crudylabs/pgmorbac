@@ -3,8 +3,14 @@
 -- =============================================================================
 -- Obligations and recommendations do NOT affect authorization
 -- They are queryable for informational purposes
+--
+-- Conflict resolution (from Multi-OrBAC paper):
+-- - A prohibition voids any applicable obligation for the same (activity, view)
+-- - A prohibition or obligation voids any applicable recommendation for the same (activity, view)
+-- - Both functions use comprehensive roles (direct, delegated, derived, inherited)
 
 -- Pending obligations for a user in an organization
+-- Returns only obligations not voided by an applicable prohibition
 CREATE OR REPLACE FUNCTION morbac.pending_obligations(
     p_user_id UUID,
     p_org_id UUID
@@ -30,22 +36,38 @@ BEGIN
         c.name,
         r.created_at
     FROM morbac.rules r
-    INNER JOIN morbac.user_roles ur ON ur.role_id = r.role_id
     INNER JOIN morbac.roles ro ON ro.id = r.role_id
     INNER JOIN morbac.contexts c ON c.id = r.context_id
-    WHERE ur.user_id = p_user_id
-      AND r.org_id = p_org_id
-      AND ur.org_id = p_org_id
+    WHERE r.org_id = p_org_id
       AND r.modality = 'obligation'
-      AND morbac.eval_context(r.context_id) = TRUE
+      AND r.role_id IN (
+          SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, p_org_id)
+      )
+      AND morbac.is_rule_valid(r.valid_from, r.valid_until)
+      AND morbac.eval_context(r.context_id)
+      -- Prohibition voids obligation: exclude if an applicable prohibition exists
+      AND NOT EXISTS (
+          SELECT 1
+          FROM morbac.rules p
+          WHERE p.org_id = p_org_id
+            AND p.modality = 'prohibition'
+            AND p.activity IN (SELECT activity FROM morbac.get_effective_activities(r.activity))
+            AND p.view IN (SELECT view FROM morbac.get_effective_views(r.view))
+            AND p.role_id IN (
+                SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, p_org_id)
+            )
+            AND morbac.is_rule_valid(p.valid_from, p.valid_until)
+            AND morbac.eval_context(p.context_id)
+      )
     ORDER BY r.created_at;
 END;
 $$;
 
 COMMENT ON FUNCTION morbac.pending_obligations(UUID, UUID) IS
-'Returns pending obligations for a user in an organization (informational only)';
+'Returns pending obligations for a user in an organization (informational only). Prohibitions void applicable obligations per Multi-OrBAC conflict resolution.';
 
 -- Recommendations for a user in an organization
+-- Returns only recommendations not voided by an applicable prohibition or obligation
 CREATE OR REPLACE FUNCTION morbac.pending_recommendations(
     p_user_id UUID,
     p_org_id UUID
@@ -71,20 +93,35 @@ BEGIN
         c.name,
         r.created_at
     FROM morbac.rules r
-    INNER JOIN morbac.user_roles ur ON ur.role_id = r.role_id
     INNER JOIN morbac.roles ro ON ro.id = r.role_id
     INNER JOIN morbac.contexts c ON c.id = r.context_id
-    WHERE ur.user_id = p_user_id
-      AND r.org_id = p_org_id
-      AND ur.org_id = p_org_id
+    WHERE r.org_id = p_org_id
       AND r.modality = 'recommendation'
-      AND morbac.eval_context(r.context_id) = TRUE
+      AND r.role_id IN (
+          SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, p_org_id)
+      )
+      AND morbac.is_rule_valid(r.valid_from, r.valid_until)
+      AND morbac.eval_context(r.context_id)
+      -- Prohibition or obligation voids recommendation
+      AND NOT EXISTS (
+          SELECT 1
+          FROM morbac.rules p
+          WHERE p.org_id = p_org_id
+            AND p.modality IN ('prohibition', 'obligation')
+            AND p.activity IN (SELECT activity FROM morbac.get_effective_activities(r.activity))
+            AND p.view IN (SELECT view FROM morbac.get_effective_views(r.view))
+            AND p.role_id IN (
+                SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, p_org_id)
+            )
+            AND morbac.is_rule_valid(p.valid_from, p.valid_until)
+            AND morbac.eval_context(p.context_id)
+      )
     ORDER BY r.created_at;
 END;
 $$;
 
 COMMENT ON FUNCTION morbac.pending_recommendations(UUID, UUID) IS
-'Returns recommendations for a user in an organization (informational only)';
+'Returns recommendations for a user in an organization (informational only). Prohibitions and obligations void applicable recommendations per Multi-OrBAC conflict resolution.';
 
 -- Get all roles for a user in an organization
 CREATE OR REPLACE FUNCTION morbac.user_roles_in_org(

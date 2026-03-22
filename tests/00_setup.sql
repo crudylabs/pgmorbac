@@ -267,7 +267,11 @@ INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, contex
     ('GlobalTech HQ', 'compliance_officer', 'read',   'financial_data', 'permission',   'always'),
 
     -- Recommendation: staff should review reports end of quarter
-    ('GlobalTech HQ', 'employee',           'read',   'reports',        'recommendation','end_of_quarter');
+    -- Note: voided by the obligation above (conflict resolution: obligation > recommendation)
+    ('GlobalTech HQ', 'employee',           'read',   'reports',        'recommendation','end_of_quarter'),
+
+    -- Recommendation: staff should stay informed on public data (no conflicting obligation)
+    ('GlobalTech HQ', 'employee',           'read',   'public_data',    'recommendation','always');
 
 -- Engineering Dept policies
 INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, context_name) VALUES

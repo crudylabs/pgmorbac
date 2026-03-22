@@ -6,6 +6,7 @@
 --   1. pending_obligations — returns obligation rules for a user
 --   2. pending_recommendations — returns recommendation rules for a user
 --   3. Obligations/recommendations do NOT affect is_allowed()
+--   3b. Conflict resolution: prohibition voids obligation; prohibition/obligation voids recommendation
 --   4. user_has_role — checks if user holds a named role
 --   5. user_roles_in_org — lists all roles for user in org
 --   6. eval_context — evaluates context predicates directly
@@ -61,13 +62,33 @@ SELECT morbac.t_eq('Karl (no role) has 0 pending obligations',
 \echo ''
 \echo '--- 2. pending_recommendations ---'
 
--- Dave (employee) has recommendation: 'read reports' during end_of_quarter (evaluates TRUE)
+-- Dave (employee) has recommendation for 'read public_data' (no conflicting obligation/prohibition)
 SELECT morbac.t('Dave (employee) has at least 1 pending recommendation',
     (SELECT COUNT(*) FROM morbac.pending_recommendations(
         '30000000-0000-0000-0000-000000000004'::uuid,
         '10000000-0000-0000-0000-000000000001'::uuid
     )) >= 1,
     TRUE);
+
+-- 'read public_data' recommendation appears (no obligation or prohibition conflicts)
+SELECT morbac.t('Dave has pending recommendation: read public_data',
+    EXISTS(
+        SELECT 1 FROM morbac.pending_recommendations(
+            '30000000-0000-0000-0000-000000000004'::uuid,
+            '10000000-0000-0000-0000-000000000001'::uuid
+        )
+        WHERE activity = 'read' AND view = 'public_data'
+    ), TRUE);
+
+-- 'read reports' recommendation is voided by the existing obligation (conflict resolution)
+SELECT morbac.t('Dave: read reports recommendation is voided by obligation',
+    NOT EXISTS(
+        SELECT 1 FROM morbac.pending_recommendations(
+            '30000000-0000-0000-0000-000000000004'::uuid,
+            '10000000-0000-0000-0000-000000000001'::uuid
+        )
+        WHERE activity = 'read' AND view = 'reports'
+    ), TRUE);
 
 -- Eve (intern) has no recommendations
 SELECT morbac.t_eq('Eve (intern) has 0 pending recommendations',
@@ -118,6 +139,58 @@ SELECT morbac.t('Dave has recommendation for read audit_logs but no permission [
         '10000000-0000-0000-0000-000000000001'::uuid,
         'read', 'audit_logs'
     ), FALSE);
+
+-- ---------------------------------------------------------------------------
+-- Section 3b: Conflict resolution — prohibition voids obligation/recommendation
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '--- 3b. Conflict resolution: prohibition voids obligation and recommendation ---'
+
+-- Add a prohibition for employee on read contracts (Dave already has an obligation for this)
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality)
+VALUES (
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0001-0000-0000-000000000004', -- employee
+    'read', 'contracts',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'prohibition'
+);
+
+-- Prohibition voids the obligation: read contracts obligation no longer pending
+SELECT morbac.t('Dave: read contracts obligation is voided by prohibition',
+    NOT EXISTS(
+        SELECT 1 FROM morbac.pending_obligations(
+            '30000000-0000-0000-0000-000000000004'::uuid,
+            '10000000-0000-0000-0000-000000000001'::uuid
+        )
+        WHERE activity = 'read' AND view = 'contracts'
+    ), TRUE);
+
+-- Prohibition also voids the recommendation for read audit_logs
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality)
+VALUES (
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0001-0000-0000-000000000004', -- employee
+    'read', 'audit_logs',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'prohibition'
+);
+
+SELECT morbac.t('Dave: read audit_logs recommendation is voided by prohibition',
+    NOT EXISTS(
+        SELECT 1 FROM morbac.pending_recommendations(
+            '30000000-0000-0000-0000-000000000004'::uuid,
+            '10000000-0000-0000-0000-000000000001'::uuid
+        )
+        WHERE activity = 'read' AND view = 'audit_logs'
+    ), TRUE);
+
+-- Clean up: remove the temporary prohibitions added for this test
+DELETE FROM morbac.rules
+WHERE org_id = '10000000-0000-0000-0000-000000000001'
+  AND role_id = '20000000-0001-0000-0000-000000000004'
+  AND modality = 'prohibition'
+  AND view IN ('contracts', 'audit_logs');
 
 -- ---------------------------------------------------------------------------
 -- Section 4: user_has_role

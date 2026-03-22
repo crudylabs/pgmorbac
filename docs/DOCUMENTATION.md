@@ -219,6 +219,17 @@ flowchart LR
     D -->|No| F[DENY]
 ```
 
+**Obligations and Recommendations**
+
+Obligations and recommendations do not affect access control, they are informational signals your application reads and acts on.
+
+- **Obligation**: the user *must* perform this action. Use it to model required tasks, workflow steps, or compliance actions (e.g. a doctor must file a discharge report, an employee must review the security policy weekly).
+- **Recommendation**: the user *should* consider this action. Use it for suggested next steps, nudges, or guidance (e.g. a manager is recommended to review team performance reports monthly).
+
+Query them via `pending_obligations()` and `pending_recommendations()` to drive task lists, alerts, or workflow gates in your application.
+
+**Conflict resolution**: a prohibition voids any applicable obligation. A prohibition or obligation voids any applicable recommendation. This mirrors the deontic priority order from the Multi-OrBAC paper: prohibition > obligation > recommendation.
+
 **Example: Employee Document Access**
 
 ```sql
