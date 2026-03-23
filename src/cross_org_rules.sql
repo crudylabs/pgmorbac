@@ -13,6 +13,7 @@ CREATE TABLE morbac.cross_org_rules (
     view TEXT NOT NULL REFERENCES morbac.views(name) ON DELETE CASCADE,
     context_id UUID NOT NULL REFERENCES morbac.contexts(id) ON DELETE CASCADE,
     modality morbac.modality NOT NULL,
+    priority INTEGER,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     valid_from TIMESTAMPTZ,
     valid_until TIMESTAMPTZ,

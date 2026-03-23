@@ -15,6 +15,7 @@ CREATE TABLE morbac.rules (
     view TEXT NOT NULL REFERENCES morbac.views(name) ON DELETE CASCADE,
     context_id UUID NOT NULL REFERENCES morbac.contexts(id) ON DELETE CASCADE,
     modality morbac.modality NOT NULL,
+    priority INTEGER,
     valid_from TIMESTAMPTZ,
     valid_until TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -60,6 +61,7 @@ COMMENT ON COLUMN morbac.rules.activity IS 'Activity (abstract action)';
 COMMENT ON COLUMN morbac.rules.view IS 'View (abstract object category)';
 COMMENT ON COLUMN morbac.rules.context_id IS 'Context condition';
 COMMENT ON COLUMN morbac.rules.modality IS 'Deontic modality: permission, prohibition, obligation, recommendation';
+COMMENT ON COLUMN morbac.rules.priority IS 'Optional: Rule priority (higher wins). NULL = 0. A permission with higher priority than a prohibition overrides it.';
 COMMENT ON COLUMN morbac.rules.valid_from IS 'Optional: Rule valid from this timestamp';
 COMMENT ON COLUMN morbac.rules.valid_until IS 'Optional: Rule valid until this timestamp';
 

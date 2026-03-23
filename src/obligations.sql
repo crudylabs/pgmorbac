@@ -45,7 +45,7 @@ BEGIN
       )
       AND morbac.is_rule_valid(r.valid_from, r.valid_until)
       AND morbac.eval_context(r.context_id)
-      -- Prohibition voids obligation: exclude if an applicable prohibition exists
+      -- Prohibition voids obligation unless the obligation has strictly higher priority
       AND NOT EXISTS (
           SELECT 1
           FROM morbac.rules p
@@ -58,6 +58,7 @@ BEGIN
             )
             AND morbac.is_rule_valid(p.valid_from, p.valid_until)
             AND morbac.eval_context(p.context_id)
+            AND COALESCE(p.priority, 0) >= COALESCE(r.priority, 0)
       )
     ORDER BY r.created_at;
 END;
@@ -102,7 +103,7 @@ BEGIN
       )
       AND morbac.is_rule_valid(r.valid_from, r.valid_until)
       AND morbac.eval_context(r.context_id)
-      -- Prohibition or obligation voids recommendation
+      -- Prohibition or obligation voids recommendation unless recommendation has strictly higher priority
       AND NOT EXISTS (
           SELECT 1
           FROM morbac.rules p
@@ -115,6 +116,7 @@ BEGIN
             )
             AND morbac.is_rule_valid(p.valid_from, p.valid_until)
             AND morbac.eval_context(p.context_id)
+            AND COALESCE(p.priority, 0) >= COALESCE(r.priority, 0)
       )
     ORDER BY r.created_at;
 END;

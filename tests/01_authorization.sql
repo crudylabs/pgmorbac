@@ -414,5 +414,81 @@ SELECT morbac.t('Frank reads financial_data (prohibited): cached = nocache',
         'read', 'financial_data'
     ), TRUE);
 
+-- ---------------------------------------------------------------------------
+-- Section N: Priority-based conflict resolution
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '--- Priority: permission overrides prohibition when strictly higher ---'
+
+-- Dave (employee) already has permission to read documents.
+-- Add a prohibition with priority=5 and a permission with priority=10 on 'read contracts'.
+INSERT INTO morbac.rules (id, org_id, role_id, activity, view, context_id, modality, priority)
+VALUES (
+    'e0000000-0000-0000-0000-000000000001',
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0001-0000-0000-000000000004', -- employee
+    'read', 'contracts',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'prohibition', 5
+);
+
+INSERT INTO morbac.rules (id, org_id, role_id, activity, view, context_id, modality, priority)
+VALUES (
+    'e0000000-0000-0000-0000-000000000002',
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0001-0000-0000-000000000004', -- employee
+    'read', 'contracts',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'permission', 10
+);
+
+-- Permission (priority=10) beats prohibition (priority=5) -> ALLOW
+SELECT morbac.t('Dave reads contracts: permission priority=10 overrides prohibition priority=5 [allowed]',
+    morbac.is_allowed_nocache(
+        '30000000-0000-0000-0000-000000000004'::uuid,
+        '10000000-0000-0000-0000-000000000001'::uuid,
+        'read', 'contracts'
+    ), TRUE);
+
+-- Flip priorities: prohibition=10, permission=5 -> prohibition wins
+UPDATE morbac.rules SET priority = 10 WHERE id = 'e0000000-0000-0000-0000-000000000001';
+UPDATE morbac.rules SET priority = 5  WHERE id = 'e0000000-0000-0000-0000-000000000002';
+
+SELECT morbac.t('Dave reads contracts: prohibition priority=10 beats permission priority=5 [denied]',
+    morbac.is_allowed_nocache(
+        '30000000-0000-0000-0000-000000000004'::uuid,
+        '10000000-0000-0000-0000-000000000001'::uuid,
+        'read', 'contracts'
+    ), FALSE);
+
+-- Equal priorities: prohibition wins (modality tiebreaker)
+UPDATE morbac.rules SET priority = 5 WHERE id = 'e0000000-0000-0000-0000-000000000001';
+
+SELECT morbac.t('Dave reads contracts: equal priority — prohibition wins by modality precedence [denied]',
+    morbac.is_allowed_nocache(
+        '30000000-0000-0000-0000-000000000004'::uuid,
+        '10000000-0000-0000-0000-000000000001'::uuid,
+        'read', 'contracts'
+    ), FALSE);
+
+-- No priority on either (NULL = 0): prohibition still wins
+UPDATE morbac.rules SET priority = NULL WHERE id IN (
+    'e0000000-0000-0000-0000-000000000001',
+    'e0000000-0000-0000-0000-000000000002'
+);
+
+SELECT morbac.t('Dave reads contracts: no priority set — prohibition wins by default [denied]',
+    morbac.is_allowed_nocache(
+        '30000000-0000-0000-0000-000000000004'::uuid,
+        '10000000-0000-0000-0000-000000000001'::uuid,
+        'read', 'contracts'
+    ), FALSE);
+
+-- Clean up
+DELETE FROM morbac.rules WHERE id IN (
+    'e0000000-0000-0000-0000-000000000001',
+    'e0000000-0000-0000-0000-000000000002'
+);
+
 \echo ''
 \echo '=== Authorization Decision Tests Completed ==='
