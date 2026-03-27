@@ -15,9 +15,9 @@ pgmorbac implements the Multi-OrBAC access control model with the following secu
 - Explicit permissions must be granted
 
 ### Prohibition Precedence
-- Prohibitions are checked first
-- Prohibitions always override permissions
-- Early return for performance and security
+- Prohibitions and permissions are both evaluated; the higher-priority rule wins
+- At equal or unset priority, prohibition overrides permission
+- A permission with strictly higher priority than a prohibition will override it
 
 ### Organization Isolation
 - All policies are scoped to organizations

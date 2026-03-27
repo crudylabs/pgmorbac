@@ -1,9 +1,5 @@
--- =============================================================================
--- PERFORMANCE: MATERIALIZED HIERARCHY VIEWS
--- =============================================================================
--- Precomputed transitive closures for hierarchies to avoid recursive CTEs on every request
+-- Precomputed transitive closures for all hierarchies to avoid recursive CTEs on each request
 
--- Precomputed role hierarchy transitive closure
 CREATE MATERIALIZED VIEW morbac.mv_role_closure AS
 WITH RECURSIVE role_closure AS (
     SELECT id as senior_role_id, id as junior_role_id, 0 as depth
@@ -27,7 +23,6 @@ CREATE INDEX idx_mv_role_closure_junior ON morbac.mv_role_closure(junior_role_id
 COMMENT ON MATERIALIZED VIEW morbac.mv_role_closure IS
 'Precomputed role hierarchy transitive closure - refresh after role hierarchy changes';
 
--- Precomputed org hierarchy transitive closure
 CREATE MATERIALIZED VIEW morbac.mv_org_closure AS
 WITH RECURSIVE org_closure AS (
     SELECT id as descendant_id, id as ancestor_id, 0 as depth
@@ -48,7 +43,6 @@ CREATE INDEX idx_mv_org_closure_ancestor ON morbac.mv_org_closure(ancestor_id);
 COMMENT ON MATERIALIZED VIEW morbac.mv_org_closure IS
 'Precomputed organization hierarchy transitive closure - refresh after org hierarchy changes';
 
--- Precomputed activity hierarchy
 CREATE MATERIALIZED VIEW morbac.mv_activity_closure AS
 WITH RECURSIVE activity_closure AS (
     SELECT name as senior_activity, name as junior_activity, 0 as depth
@@ -72,7 +66,6 @@ CREATE INDEX idx_mv_activity_closure_junior ON morbac.mv_activity_closure(junior
 COMMENT ON MATERIALIZED VIEW morbac.mv_activity_closure IS
 'Precomputed activity hierarchy transitive closure - refresh after activity hierarchy changes';
 
--- Precomputed view hierarchy
 CREATE MATERIALIZED VIEW morbac.mv_view_closure AS
 WITH RECURSIVE view_closure AS (
     SELECT name as senior_view, name as junior_view, 0 as depth
@@ -96,7 +89,6 @@ CREATE INDEX idx_mv_view_closure_junior ON morbac.mv_view_closure(junior_view);
 COMMENT ON MATERIALIZED VIEW morbac.mv_view_closure IS
 'Precomputed view hierarchy transitive closure - refresh after view hierarchy changes';
 
--- Helper function to refresh all materialized views
 CREATE OR REPLACE FUNCTION morbac.refresh_hierarchy_cache()
 RETURNS VOID
 LANGUAGE plpgsql

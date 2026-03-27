@@ -1,8 +1,5 @@
--- =============================================================================
--- AUDIT LOG
--- =============================================================================
--- Optional audit logging for tracking changes to security-critical tables
--- Enable/disable per table with triggers
+-- Optional audit logging for tracking changes to security-critical tables.
+-- Enable/disable per table with morbac.enable_audit() / morbac.disable_audit().
 
 CREATE TABLE morbac.audit_log (
     id BIGSERIAL PRIMARY KEY,
@@ -35,7 +32,6 @@ COMMENT ON COLUMN morbac.audit_log.changed_fields IS 'Array of field names that 
 COMMENT ON COLUMN morbac.audit_log.session_username IS 'Database session user';
 COMMENT ON COLUMN morbac.audit_log.client_addr IS 'Client IP address';
 
--- Generic audit trigger function
 CREATE OR REPLACE FUNCTION morbac.audit_trigger()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -48,7 +44,6 @@ DECLARE
     v_org_id UUID;
     v_record_id UUID;
 BEGIN
-    -- Try to get current user/org context
     BEGIN
         v_user_id := morbac.current_user_id();
     EXCEPTION WHEN OTHERS THEN
@@ -61,7 +56,6 @@ BEGIN
         v_org_id := NULL;
     END;
 
-    -- Handle different operations
     IF TG_OP = 'DELETE' THEN
         v_old_data := row_to_json(OLD)::jsonb;
         v_new_data := NULL;
@@ -75,14 +69,12 @@ BEGIN
         v_new_data := row_to_json(NEW)::jsonb;
         v_record_id := (v_new_data->>'id')::uuid;
 
-        -- Identify changed fields
         SELECT array_agg(key)
         INTO v_changed_fields
         FROM jsonb_each(v_old_data)
         WHERE v_old_data->key IS DISTINCT FROM v_new_data->key;
     END IF;
 
-    -- Override org_id from record if available
     IF v_org_id IS NULL THEN
         IF v_new_data ? 'org_id' THEN
             v_org_id := (v_new_data->>'org_id')::uuid;
@@ -91,7 +83,6 @@ BEGIN
         END IF;
     END IF;
 
-    -- Insert audit record
     INSERT INTO morbac.audit_log (
         user_id,
         org_id,
@@ -112,7 +103,6 @@ BEGIN
         v_changed_fields
     );
 
-    -- Return appropriate value
     IF TG_OP = 'DELETE' THEN
         RETURN OLD;
     ELSE
@@ -124,7 +114,6 @@ $$;
 COMMENT ON FUNCTION morbac.audit_trigger() IS
 'Generic audit trigger function - captures INSERT/UPDATE/DELETE operations';
 
--- Helper function to enable audit logging on a table
 CREATE OR REPLACE FUNCTION morbac.enable_audit(p_table_name TEXT)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -148,7 +137,6 @@ $$;
 COMMENT ON FUNCTION morbac.enable_audit(TEXT) IS
 'Enable audit logging on a morbac table - creates audit trigger';
 
--- Helper function to disable audit logging on a table
 CREATE OR REPLACE FUNCTION morbac.disable_audit(p_table_name TEXT)
 RETURNS VOID
 LANGUAGE plpgsql

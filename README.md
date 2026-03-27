@@ -142,16 +142,17 @@ VALUES (org_id, role_id, 'write', 'sensitive_data', ctx_id, 'permission',
         '2024-01-01 00:00:00', '2024-12-31 23:59:59');
 
 -- Delegation: Alice delegates role to Bob for 1 week
-INSERT INTO morbac.delegations (delegator_user_id, delegate_user_id, role_id, org_id, valid_until)
+INSERT INTO morbac.delegations (delegator_id, delegatee_id, role_id, org_id, valid_until)
 VALUES (alice_id, bob_id, role_id, org_id, NOW() + INTERVAL '7 days');
 
 -- Separation of Duty: Invoice creator and approver roles are mutually exclusive
-INSERT INTO morbac.sod_conflicts (role1_id, role2_id, org_id)
+INSERT INTO morbac.sod_conflicts (role_a_id, role_b_id, org_id)
 VALUES (creator_role_id, approver_role_id, org_id);
 
 -- Cross-Org: Global auditor can access subsidiary
-INSERT INTO morbac.cross_org_rules (source_org_id, target_org_id, role_id, activity, view, modality)
-VALUES (global_org_id, subsidiary_org_id, auditor_role_id, 'read', 'reports', 'permission');
+INSERT INTO morbac.cross_org_rules (source_org_id, target_org_id, role_id, activity, view, context_id, modality)
+VALUES (global_org_id, subsidiary_org_id, auditor_role_id, 'read', 'reports',
+        (SELECT id FROM morbac.contexts WHERE name = 'always'), 'permission');
 
 -- Audit logging: Track changes to user roles
 SELECT morbac.enable_audit('user_roles');
@@ -180,7 +181,7 @@ psql -d morbac_test -f pgmorbac.sql
 dropdb morbac_test
 ```
 
-See [src/README.md](src/README.md) for source code organization.
+See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for source code organization.
 
 ## Documentation
 
@@ -198,11 +199,12 @@ Authorization decision flow:
 
 1. Collect all roles for user (direct, delegated, derived, hierarchy)
 2. Filter out negative role assignments
-3. Check for prohibitions: if found, deny access
-4. Check for permissions: if found, allow access
-5. Default deny
+3. Find the highest-priority applicable prohibition and highest-priority applicable permission
+4. If a permission with strictly higher priority than the prohibition exists, allow
+5. If a prohibition exists (and no higher-priority permission), deny
+6. If no prohibition, allow if any permission was found; otherwise deny
 
-Prohibitions always override permissions.
+Prohibitions win over permissions at equal or unset priority.
 
 ## Research
 
@@ -223,12 +225,12 @@ cd pgmorbac
 vim src/authorization.sql
 
 # Build and test your changes
-make test          # Run test suite
+make check         # Run test suite
 
 # When ready to release
 # 1. Update version in pgmorbac.control
 # 2. Build versioned file
-make build         # Creates pgmorbac--X.Y.Z.sql
+make build         # Creates pgmorbac.sql from src/
 # 3. Tag in git
 git tag v1.0.1
 git push --tags

@@ -1,8 +1,5 @@
--- =============================================================================
--- PERFORMANCE: AUTHORIZATION CACHE
--- =============================================================================
--- Cache authorization decisions to avoid repeated expensive computations
--- Cache TTL is configurable via morbac.config table (key: cache_ttl_seconds)
+-- Authorization decision cache to avoid repeated expensive computations.
+-- TTL is configurable via morbac.config (cache_ttl_seconds).
 
 CREATE TABLE morbac.auth_cache (
     user_id UUID NOT NULL,
@@ -21,7 +18,6 @@ CREATE INDEX idx_auth_cache_user_org ON morbac.auth_cache(user_id, org_id);
 COMMENT ON TABLE morbac.auth_cache IS
 'Authorization decision cache - expires after 5 minutes or when policies change';
 
--- Invalidate cache for user/org
 CREATE OR REPLACE FUNCTION morbac.invalidate_cache(p_user_id UUID DEFAULT NULL, p_org_id UUID DEFAULT NULL)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -42,7 +38,6 @@ $$;
 COMMENT ON FUNCTION morbac.invalidate_cache(UUID, UUID) IS
 'Invalidate auth cache for specific user/org or all entries';
 
--- Auto cleanup expired cache entries
 CREATE OR REPLACE FUNCTION morbac.cleanup_auth_cache()
 RETURNS INTEGER
 LANGUAGE plpgsql
@@ -59,7 +54,8 @@ $$;
 COMMENT ON FUNCTION morbac.cleanup_auth_cache() IS
 'Remove expired cache entries - call periodically via cron';
 
--- Trigger to invalidate cache on rule changes
+-- Invalidate cache on rule or role changes
+
 CREATE OR REPLACE FUNCTION morbac.invalidate_cache_on_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -67,7 +63,6 @@ AS $$
 DECLARE
     v_org_id UUID;
 BEGIN
-    -- Only clear cache if org_id exists in NEW or OLD
     IF TG_OP = 'DELETE' THEN
         BEGIN
             v_org_id := OLD.org_id;
@@ -88,7 +83,6 @@ BEGIN
 END;
 $$;
 
--- Attach cache invalidation triggers
 CREATE TRIGGER trg_invalidate_cache_rules
 AFTER INSERT OR UPDATE OR DELETE ON morbac.rules
 FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
@@ -105,15 +99,14 @@ CREATE TRIGGER trg_invalidate_cache_cross_org
 AFTER INSERT OR UPDATE OR DELETE ON morbac.cross_org_rules
 FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
 
--- Trigger to refresh hierarchies when they change
+-- Refresh materialized hierarchy views when hierarchies change
+
 CREATE OR REPLACE FUNCTION morbac.refresh_on_hierarchy_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    -- Refresh in background (this will block briefly but necessary)
     PERFORM morbac.refresh_hierarchy_cache();
-    -- Also invalidate auth cache since hierarchies affect authorization
     DELETE FROM morbac.auth_cache;
     RETURN COALESCE(NEW, OLD);
 END;

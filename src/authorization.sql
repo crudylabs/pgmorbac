@@ -1,19 +1,15 @@
--- =============================================================================
--- AUTHORIZATION DECISION FUNCTION (CRITICAL)
--- =============================================================================
--- Implements the canonical OrBAC authorization decision
+-- Authorization decision function implementing canonical OrBAC semantics.
 --
--- Semantics (from Multi-OrBAC paper):
--- - Access is allowed if and only if:
+-- Access is allowed if and only if:
 --   1. At least one applicable permission exists
 --   2. AND no applicable prohibition exists (or permission has strictly higher priority)
--- - Default deny (no permission = deny)
--- - Obligations and recommendations do NOT affect authorization
+-- Default deny (no permission = deny).
+-- Obligations and recommendations do NOT affect authorization.
 --
 -- Priority resolution:
 -- - Each rule has an optional integer priority (NULL = 0, lowest)
 -- - When both a prohibition and a permission apply, the higher-priority rule wins
--- - Tie goes to prohibition (modality precedence from the paper)
+-- - Tie goes to prohibition (modality precedence from the Multi-OrBAC paper)
 
 CREATE OR REPLACE FUNCTION morbac.is_allowed_nocache(
     p_user_id UUID,
@@ -44,7 +40,7 @@ BEGIN
     LOOP
         IF morbac.eval_context(v_rule.context_id) THEN
             v_max_prohibition_priority := v_rule.prio;
-            EXIT; -- Highest-priority prohibition found; lower ones can't change the outcome
+            EXIT;
         END IF;
     END LOOP;
 
@@ -107,18 +103,15 @@ BEGIN
     END LOOP;
 
     -- STEP 5: Priority resolution
-    -- No prohibition at all: allow if any permission was found
     IF v_max_prohibition_priority IS NULL THEN
         RETURN v_max_permission_priority IS NOT NULL;
     END IF;
 
-    -- Prohibition exists: a permission with strictly higher priority overrides it
     IF v_max_permission_priority IS NOT NULL
        AND v_max_permission_priority > v_max_prohibition_priority THEN
         RETURN TRUE;
     END IF;
 
-    -- Prohibition wins (no permission, equal priority, or lower-priority permission)
     RETURN FALSE;
 END;
 $$;
@@ -142,7 +135,6 @@ DECLARE
     v_computed_result BOOLEAN;
     v_expires_at TIMESTAMPTZ;
 BEGIN
-    -- Try cache first
     SELECT allowed, expires_at INTO v_cached_result, v_expires_at
     FROM morbac.auth_cache
     WHERE user_id = p_user_id
@@ -155,10 +147,8 @@ BEGIN
         RETURN v_cached_result;
     END IF;
 
-    -- Cache miss - compute authorization
     v_computed_result := morbac.is_allowed_nocache(p_user_id, p_org_id, p_activity, p_view);
 
-    -- Store in cache (TTL from config)
     INSERT INTO morbac.auth_cache (user_id, org_id, activity, view, allowed, expires_at)
     VALUES (
         p_user_id,

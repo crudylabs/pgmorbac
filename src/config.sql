@@ -1,9 +1,3 @@
--- =============================================================================
--- CONFIGURATION
--- =============================================================================
--- Centralized configuration for pgmorbac extension
--- Edit these values to customize behavior
-
 CREATE TABLE morbac.config (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
@@ -13,13 +7,11 @@ CREATE TABLE morbac.config (
 
 COMMENT ON TABLE morbac.config IS 'Extension configuration - edit values to customize behavior';
 
--- Insert default configuration values
 INSERT INTO morbac.config (key, value, description) VALUES
     ('cache_ttl_seconds', '300', 'Authorization cache time-to-live in seconds (default: 5 minutes)'),
     ('hierarchy_max_depth', '10', 'Maximum depth for hierarchy traversal to prevent infinite loops'),
     ('enable_audit_by_default', 'false', 'Whether to enable audit logging by default on installation');
 
--- Helper function to get configuration values
 CREATE OR REPLACE FUNCTION morbac.get_config(p_key TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql
@@ -39,7 +31,6 @@ $$;
 COMMENT ON FUNCTION morbac.get_config(TEXT) IS
 'Get configuration value by key';
 
--- Helper function to set configuration values
 CREATE OR REPLACE FUNCTION morbac.set_config(p_key TEXT, p_value TEXT)
 RETURNS VOID
 LANGUAGE plpgsql

@@ -1,11 +1,4 @@
--- =============================================================================
--- RULES (Core OrBAC Policy)
--- =============================================================================
--- Implements the OrBAC rule relation:
--- Rule(org, role, activity, view, context, modality)
---
--- Represents: Permission, Prohibition, Obligation, or Recommendation
-
+-- Core OrBAC rule relation: Rule(org, role, activity, view, context, modality)
 
 CREATE TABLE morbac.rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -25,19 +18,20 @@ CREATE TABLE morbac.rules (
     CHECK (valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from)
 );
 
-
--- Indexes for fast lookup and validity
 CREATE INDEX idx_rules_org_role ON morbac.rules(org_id, role_id);
 CREATE INDEX idx_rules_activity_view ON morbac.rules(activity, view);
 CREATE INDEX idx_rules_modality ON morbac.rules(modality);
 CREATE INDEX idx_rules_lookup ON morbac.rules(org_id, role_id, activity, view, modality);
-
--- Fast lookup index for active rules
 CREATE INDEX idx_rules_fast_lookup ON morbac.rules(org_id, activity, modality, view)
 INCLUDE (role_id, context_id)
 WHERE is_active = true;
 
--- Placeholder trigger to maintain is_active (update as needed)
+COMMENT ON TABLE morbac.rules IS 'Core OrBAC rules - Permission, Prohibition, Obligation, Recommendation';
+COMMENT ON COLUMN morbac.rules.modality IS 'Deontic modality: permission, prohibition, obligation, recommendation';
+COMMENT ON COLUMN morbac.rules.priority IS 'Optional rule priority (higher wins). NULL = 0. A permission with higher priority than a prohibition overrides it.';
+
+-- Trigger to maintain is_active based on temporal validity
+
 CREATE OR REPLACE FUNCTION morbac.rules_set_is_active()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -54,18 +48,8 @@ CREATE TRIGGER trg_rules_set_is_active
 BEFORE INSERT OR UPDATE ON morbac.rules
 FOR EACH ROW EXECUTE FUNCTION morbac.rules_set_is_active();
 
-COMMENT ON TABLE morbac.rules IS 'Core OrBAC rules - Permission, Prohibition, Obligation, Recommendation';
-COMMENT ON COLUMN morbac.rules.org_id IS 'Organization scope';
-COMMENT ON COLUMN morbac.rules.role_id IS 'Role this rule applies to';
-COMMENT ON COLUMN morbac.rules.activity IS 'Activity (abstract action)';
-COMMENT ON COLUMN morbac.rules.view IS 'View (abstract object category)';
-COMMENT ON COLUMN morbac.rules.context_id IS 'Context condition';
-COMMENT ON COLUMN morbac.rules.modality IS 'Deontic modality: permission, prohibition, obligation, recommendation';
-COMMENT ON COLUMN morbac.rules.priority IS 'Optional: Rule priority (higher wins). NULL = 0. A permission with higher priority than a prohibition overrides it.';
-COMMENT ON COLUMN morbac.rules.valid_from IS 'Optional: Rule valid from this timestamp';
-COMMENT ON COLUMN morbac.rules.valid_until IS 'Optional: Rule valid until this timestamp';
+-- Check if a rule is currently valid based on temporal constraints
 
--- Helper function to check if a rule is currently valid
 CREATE OR REPLACE FUNCTION morbac.is_rule_valid(
     p_valid_from TIMESTAMPTZ,
     p_valid_until TIMESTAMPTZ
@@ -77,17 +61,10 @@ AS $$
 DECLARE
     v_now TIMESTAMPTZ := CURRENT_TIMESTAMP;
 BEGIN
-    -- If no temporal constraints, rule is valid
-    IF p_valid_from IS NULL AND p_valid_until IS NULL THEN
-        RETURN TRUE;
-    END IF;
-
-    -- Check valid_from
     IF p_valid_from IS NOT NULL AND v_now < p_valid_from THEN
         RETURN FALSE;
     END IF;
 
-    -- Check valid_until
     IF p_valid_until IS NOT NULL AND v_now >= p_valid_until THEN
         RETURN FALSE;
     END IF;

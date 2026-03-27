@@ -1,8 +1,4 @@
--- =============================================================================
--- ROLES
--- =============================================================================
--- Roles are scoped to organizations
--- A role abstracts a set of subjects within an organization
+-- Roles are scoped to organizations and abstract sets of subjects
 
 CREATE TABLE morbac.roles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -17,13 +13,7 @@ CREATE INDEX idx_roles_org_id ON morbac.roles(org_id);
 CREATE INDEX idx_roles_org_name ON morbac.roles(org_id, name);
 
 COMMENT ON TABLE morbac.roles IS 'Roles scoped to organizations - abstract sets of subjects';
-COMMENT ON COLUMN morbac.roles.org_id IS 'Organization this role belongs to';
-COMMENT ON COLUMN morbac.roles.name IS 'Role name (unique within organization)';
 
--- =============================================================================
--- ROLE HIERARCHY
--- =============================================================================
--- Roles can inherit from other roles (role hierarchy)
 -- Senior roles inherit permissions from junior roles
 
 CREATE TABLE morbac.role_hierarchy (
@@ -41,11 +31,7 @@ COMMENT ON TABLE morbac.role_hierarchy IS 'Role hierarchy - senior roles inherit
 COMMENT ON COLUMN morbac.role_hierarchy.senior_role_id IS 'Senior role (inherits permissions)';
 COMMENT ON COLUMN morbac.role_hierarchy.junior_role_id IS 'Junior role (provides permissions)';
 
--- =============================================================================
--- USER-ROLE ASSIGNMENTS
--- =============================================================================
--- Maps users to roles within organizations
--- user_id is external (e.g., from authentication system)
+-- Maps users to roles within organizations; user_id is external (e.g., from auth system)
 
 CREATE TABLE morbac.user_roles (
     user_id UUID NOT NULL,
@@ -57,19 +43,12 @@ CREATE TABLE morbac.user_roles (
 
 CREATE INDEX idx_user_roles_user_org ON morbac.user_roles(user_id, org_id);
 CREATE INDEX idx_user_roles_role ON morbac.user_roles(role_id);
--- Performance: Fast role lookup with included role_id
 CREATE INDEX idx_user_roles_fast ON morbac.user_roles(user_id, org_id) INCLUDE (role_id);
 
 COMMENT ON TABLE morbac.user_roles IS 'Maps users to roles within organizations';
 COMMENT ON COLUMN morbac.user_roles.user_id IS 'External user identifier';
-COMMENT ON COLUMN morbac.user_roles.role_id IS 'Role assigned to the user';
-COMMENT ON COLUMN morbac.user_roles.org_id IS 'Organization context for this assignment';
 
--- =============================================================================
--- DELEGATION
--- =============================================================================
--- Users can delegate their permissions to other users temporarily
--- Delegation is time-bounded and role-scoped
+-- Temporary delegation of a role from one user to another, time-bounded
 
 CREATE TABLE morbac.delegations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -89,18 +68,11 @@ CREATE INDEX idx_delegations_delegatee ON morbac.delegations(delegatee_id, org_i
 CREATE INDEX idx_delegations_validity ON morbac.delegations(valid_from, valid_until) WHERE NOT revoked;
 
 COMMENT ON TABLE morbac.delegations IS 'Temporary delegation of roles from one user to another';
-COMMENT ON COLUMN morbac.delegations.delegator_id IS 'User delegating the role';
-COMMENT ON COLUMN morbac.delegations.delegatee_id IS 'User receiving the delegated role';
-COMMENT ON COLUMN morbac.delegations.role_id IS 'Role being delegated';
 COMMENT ON COLUMN morbac.delegations.valid_from IS 'Delegation start time';
 COMMENT ON COLUMN morbac.delegations.valid_until IS 'Delegation end time';
 COMMENT ON COLUMN morbac.delegations.revoked IS 'Whether delegation has been revoked';
 
--- =============================================================================
--- NEGATIVE ROLE ASSIGNMENTS
--- =============================================================================
--- Explicitly prevent users from ever getting certain roles
--- Takes precedence over positive assignments
+-- Explicitly prevent users from ever getting certain roles; takes precedence over positive assignments
 
 CREATE TABLE morbac.negative_role_assignments (
     user_id UUID NOT NULL,
@@ -114,14 +86,9 @@ CREATE TABLE morbac.negative_role_assignments (
 CREATE INDEX idx_negative_assignments ON morbac.negative_role_assignments(user_id, org_id);
 
 COMMENT ON TABLE morbac.negative_role_assignments IS 'Explicit prohibition of role assignments';
-COMMENT ON COLUMN morbac.negative_role_assignments.user_id IS 'User prohibited from having role';
-COMMENT ON COLUMN morbac.negative_role_assignments.role_id IS 'Role that is prohibited';
 COMMENT ON COLUMN morbac.negative_role_assignments.reason IS 'Reason for prohibition';
 
--- =============================================================================
--- SEPARATION OF DUTY (SoD)
--- =============================================================================
--- Define mutually exclusive roles that cannot be held simultaneously
+-- Mutually exclusive roles that cannot be held simultaneously
 
 CREATE TABLE morbac.sod_conflicts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -138,14 +105,8 @@ CREATE INDEX idx_sod_conflicts_org ON morbac.sod_conflicts(org_id);
 CREATE INDEX idx_sod_conflicts_roles ON morbac.sod_conflicts(role_a_id, role_b_id);
 
 COMMENT ON TABLE morbac.sod_conflicts IS 'Separation of Duty: mutually exclusive roles';
-COMMENT ON COLUMN morbac.sod_conflicts.role_a_id IS 'First conflicting role';
-COMMENT ON COLUMN morbac.sod_conflicts.role_b_id IS 'Second conflicting role';
-COMMENT ON COLUMN morbac.sod_conflicts.description IS 'Description of the conflict';
 
--- =============================================================================
--- CARDINALITY CONSTRAINTS
--- =============================================================================
--- Limit the number of users that can have a specific role
+-- Min/max user count constraints per role
 
 CREATE TABLE morbac.role_cardinality (
     role_id UUID PRIMARY KEY REFERENCES morbac.roles(id) ON DELETE CASCADE,
@@ -161,9 +122,6 @@ COMMENT ON TABLE morbac.role_cardinality IS 'Cardinality constraints for roles (
 COMMENT ON COLUMN morbac.role_cardinality.min_users IS 'Minimum number of users required for this role';
 COMMENT ON COLUMN morbac.role_cardinality.max_users IS 'Maximum number of users allowed for this role';
 
--- =============================================================================
--- DERIVED ROLES
--- =============================================================================
 -- Roles computed dynamically based on conditions rather than explicit assignment
 
 CREATE TABLE morbac.derived_roles (
@@ -174,5 +132,4 @@ CREATE TABLE morbac.derived_roles (
 );
 
 COMMENT ON TABLE morbac.derived_roles IS 'Roles computed dynamically based on conditions';
-COMMENT ON COLUMN morbac.derived_roles.role_id IS 'Role that is derived';
 COMMENT ON COLUMN morbac.derived_roles.condition_evaluator IS 'Function(user_id, org_id) returning boolean';

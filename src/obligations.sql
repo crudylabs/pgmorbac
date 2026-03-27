@@ -1,16 +1,11 @@
--- =============================================================================
--- OBLIGATIONS AND RECOMMENDATIONS
--- =============================================================================
--- Obligations and recommendations do NOT affect authorization
--- They are queryable for informational purposes
+-- Obligations and recommendations do NOT affect authorization decisions.
+-- They are queryable for informational purposes (task lists, compliance prompts, etc.).
 --
 -- Conflict resolution (from Multi-OrBAC paper):
 -- - A prohibition voids any applicable obligation for the same (activity, view)
 -- - A prohibition or obligation voids any applicable recommendation for the same (activity, view)
--- - Both functions use comprehensive roles (direct, delegated, derived, inherited)
 
--- Pending obligations for a user in an organization
--- Returns only obligations not voided by an applicable prohibition
+-- Returns pending obligations not voided by an applicable prohibition
 CREATE OR REPLACE FUNCTION morbac.pending_obligations(
     p_user_id UUID,
     p_org_id UUID
@@ -67,8 +62,7 @@ $$;
 COMMENT ON FUNCTION morbac.pending_obligations(UUID, UUID) IS
 'Returns pending obligations for a user in an organization (informational only). Prohibitions void applicable obligations per Multi-OrBAC conflict resolution.';
 
--- Recommendations for a user in an organization
--- Returns only recommendations not voided by an applicable prohibition or obligation
+-- Returns recommendations not voided by an applicable prohibition or obligation
 CREATE OR REPLACE FUNCTION morbac.pending_recommendations(
     p_user_id UUID,
     p_org_id UUID
@@ -125,7 +119,6 @@ $$;
 COMMENT ON FUNCTION morbac.pending_recommendations(UUID, UUID) IS
 'Returns recommendations for a user in an organization (informational only). Prohibitions and obligations void applicable recommendations per Multi-OrBAC conflict resolution.';
 
--- Get all roles for a user in an organization
 CREATE OR REPLACE FUNCTION morbac.user_roles_in_org(
     p_user_id UUID,
     p_org_id UUID
@@ -151,7 +144,6 @@ $$;
 COMMENT ON FUNCTION morbac.user_roles_in_org(UUID, UUID) IS
 'Returns all roles for a user in an organization';
 
--- Check if user has specific role in organization
 CREATE OR REPLACE FUNCTION morbac.user_has_role(
     p_user_id UUID,
     p_org_id UUID,

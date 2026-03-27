@@ -30,7 +30,7 @@ vim src/authorization.sql
 ### Build and Test
 
 ```bash
-make test
+make check
 ```
 
 This builds from `src/`, creates a temporary database, runs all tests, and cleans up.
@@ -58,7 +58,7 @@ dropdb mytest
 
 1. Update version in `pgmorbac.control`
 2. Update `CHANGELOG.md`
-3. Run `make build` and `make test`
+3. Run `make build` and `make check`
 4. Commit and tag:
 
 ```bash
@@ -71,7 +71,7 @@ git push origin main --tags
 
 ```bash
 make build      # Build from src/ files
-make test       # Build and run tests
+make check       # Build and run tests
 make install    # Install to PostgreSQL
 make help       # Show all targets
 ```
@@ -87,14 +87,14 @@ Functions use `verb_noun` pattern. Tables use plural nouns.
 1. Edit files in `src/`
 2. Add tests in `tests/`
 3. Update `docs/DOCUMENTATION.md`
-4. Run `make test`
+4. Run `make check`
 5. Commit source files
 
 ## Debugging
 
 ```sql
-SELECT * FROM morbac.auth_cache ORDER BY last_checked DESC LIMIT 10;
-SELECT morbac.invalidate_auth_cache();
+SELECT * FROM morbac.auth_cache ORDER BY computed_at DESC LIMIT 10;
+SELECT morbac.invalidate_cache();
 EXPLAIN ANALYZE SELECT morbac.is_allowed(...);
 SELECT morbac.refresh_hierarchy_cache();
 ```

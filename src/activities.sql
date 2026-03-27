@@ -1,8 +1,4 @@
--- =============================================================================
--- ACTIVITIES
--- =============================================================================
--- Activities represent abstract actions in OrBAC
--- These are global abstractions (not org-scoped)
+-- Activities are global abstract actions (not org-scoped)
 
 CREATE TABLE morbac.activities (
     name TEXT PRIMARY KEY,
@@ -11,14 +7,8 @@ CREATE TABLE morbac.activities (
 );
 
 COMMENT ON TABLE morbac.activities IS 'Activities - abstract actions in OrBAC model (global)';
-COMMENT ON COLUMN morbac.activities.name IS 'Activity name (unique, global)';
 
--- =============================================================================
--- ACTIVITY HIERARCHY
--- =============================================================================
--- Activities can inherit from other activities
--- e.g., "write" implies "read", "admin_delete" implies "delete"
-
+-- Senior activities imply junior activities (e.g., write implies read)
 CREATE TABLE morbac.activity_hierarchy (
     senior_activity TEXT NOT NULL REFERENCES morbac.activities(name) ON DELETE CASCADE,
     junior_activity TEXT NOT NULL REFERENCES morbac.activities(name) ON DELETE CASCADE,

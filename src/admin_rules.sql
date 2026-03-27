@@ -1,6 +1,3 @@
--- =============================================================================
--- ADMINISTRATION RULES
--- =============================================================================
 -- Meta-policies defining who can create/modify policies (AdministrationPermission)
 
 CREATE TABLE morbac.admin_rules (

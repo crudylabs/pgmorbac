@@ -26,9 +26,9 @@ Feature requests are welcome! Please open an issue describing:
 2. **Create a feature branch**: `git checkout -b feature/my-feature`
 3. **Make your changes**:
    - Follow the existing code style (SQL formatting, naming conventions)
-   - Add tests in `test_morbac.sql` for new features
-   - Update `DOCUMENTATION.md` if adding new functionality
-4. **Test your changes**: `make test`
+   - Add tests in `tests/` for new features
+   - Update `docs/DOCUMENTATION.md` if adding new functionality
+4. **Test your changes**: `make check`
 5. **Commit with clear messages**: `git commit -m "Add feature: description"`
 6. **Push to your fork**: `git push origin feature/my-feature`
 7. **Open a Pull Request** with a description of your changes
@@ -44,8 +44,8 @@ Feature requests are welcome! Please open an issue describing:
 ### Testing
 
 All changes must include tests:
-- Add test cases to `test_morbac.sql`
-- Ensure all existing tests still pass
+- Add test cases in `tests/` following the numbered file convention
+- Ensure all existing tests still pass (`make check`)
 - Test against PostgreSQL 13+ (mention version in PR)
 
 ### Documentation
@@ -69,7 +69,7 @@ cd pgmorbac
 make install
 
 # Run tests
-make test
+make check
 ```
 
 ## Questions?

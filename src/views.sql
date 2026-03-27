@@ -1,8 +1,4 @@
--- =============================================================================
--- VIEWS
--- =============================================================================
--- Views represent abstract object categories in OrBAC
--- These are global abstractions (not org-scoped)
+-- Views are global abstract object categories (not org-scoped)
 
 CREATE TABLE morbac.views (
     name TEXT PRIMARY KEY,
@@ -11,14 +7,8 @@ CREATE TABLE morbac.views (
 );
 
 COMMENT ON TABLE morbac.views IS 'Views - abstract object categories in OrBAC model (global)';
-COMMENT ON COLUMN morbac.views.name IS 'View name (unique, global)';
 
--- =============================================================================
--- VIEW HIERARCHY
--- =============================================================================
--- Views can inherit from other views
--- e.g., "confidential_documents" is a "documents", "admin_reports" is a "reports"
-
+-- Senior views inherit from junior views (e.g., confidential_documents is a documents)
 CREATE TABLE morbac.view_hierarchy (
     senior_view TEXT NOT NULL REFERENCES morbac.views(name) ON DELETE CASCADE,
     junior_view TEXT NOT NULL REFERENCES morbac.views(name) ON DELETE CASCADE,

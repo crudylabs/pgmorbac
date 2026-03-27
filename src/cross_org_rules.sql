@@ -1,8 +1,4 @@
--- =============================================================================
--- INTER-ORGANIZATIONAL RULES
--- =============================================================================
--- Rules that apply across organizations (cross-org access)
--- Allows users from one org to access resources in another org
+-- Rules that grant access across organization boundaries
 
 CREATE TABLE morbac.cross_org_rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -30,5 +26,3 @@ CREATE INDEX idx_cross_org_rules_temporal ON morbac.cross_org_rules(valid_from, 
 COMMENT ON TABLE morbac.cross_org_rules IS 'Inter-organizational rules for cross-org access';
 COMMENT ON COLUMN morbac.cross_org_rules.source_org_id IS 'Organization where user has role';
 COMMENT ON COLUMN morbac.cross_org_rules.target_org_id IS 'Organization where resource resides';
-COMMENT ON COLUMN morbac.cross_org_rules.valid_from IS 'Optional start time for rule validity';
-COMMENT ON COLUMN morbac.cross_org_rules.valid_until IS 'Optional end time for rule validity';

@@ -1,8 +1,3 @@
--- =============================================================================
--- DEONTIC MODALITY TYPE
--- =============================================================================
--- Represents the four deontic modalities of OrBAC model
-
 CREATE TYPE morbac.modality AS ENUM (
     'permission',
     'prohibition',

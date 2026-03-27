@@ -1,6 +1,4 @@
--- =============================================================================
--- VALIDATION FUNCTIONS
--- =============================================================================
+-- Validation functions for SoD, cardinality, and rule conflict detection.
 --
 -- Rule conflict detection (from Multi-OrBAC paper):
 -- Conflicts exist when two rules share the same (org, role, activity, view, context)
@@ -12,7 +10,6 @@
 --
 -- Note: hierarchy-based overlaps are intentional design, not flagged here.
 
--- Check if role assignment would violate Separation of Duty
 CREATE OR REPLACE FUNCTION morbac.check_sod_violation(
     p_user_id UUID,
     p_role_id UUID,
@@ -25,7 +22,6 @@ AS $$
 DECLARE
     v_conflict_exists BOOLEAN;
 BEGIN
-    -- Check if user already has a conflicting role
     SELECT EXISTS (
         SELECT 1
         FROM morbac.user_roles ur
@@ -45,7 +41,6 @@ $$;
 COMMENT ON FUNCTION morbac.check_sod_violation(UUID, UUID, UUID) IS
 'Returns true if assigning role would violate Separation of Duty constraints';
 
--- Check if role assignment would violate cardinality constraints
 CREATE OR REPLACE FUNCTION morbac.check_cardinality_violation(
     p_role_id UUID,
     p_adding BOOLEAN DEFAULT TRUE
@@ -59,7 +54,6 @@ DECLARE
     v_min_users INTEGER;
     v_max_users INTEGER;
 BEGIN
-    -- Get current user count and constraints
     SELECT
         COUNT(DISTINCT ur.user_id),
         rc.min_users,
@@ -70,28 +64,25 @@ BEGIN
     WHERE ur.role_id = p_role_id
     GROUP BY rc.min_users, rc.max_users;
 
-    -- Check max constraint when adding
     IF p_adding AND v_max_users IS NOT NULL THEN
         IF v_current_count >= v_max_users THEN
             RETURN format('Maximum users (%s) reached for role', v_max_users);
         END IF;
     END IF;
 
-    -- Check min constraint when removing
     IF NOT p_adding AND v_min_users IS NOT NULL THEN
         IF v_current_count <= v_min_users THEN
             RETURN format('Minimum users (%s) required for role', v_min_users);
         END IF;
     END IF;
 
-    RETURN NULL; -- No violation
+    RETURN NULL;
 END;
 $$;
 
 COMMENT ON FUNCTION morbac.check_cardinality_violation(UUID, BOOLEAN) IS
 'Returns error message if cardinality constraint would be violated, NULL otherwise';
 
--- Detect direct modality conflicts for a candidate rule
 CREATE OR REPLACE FUNCTION morbac.detect_rule_conflicts(
     p_org_id     UUID,
     p_role_id    UUID,
@@ -99,7 +90,7 @@ CREATE OR REPLACE FUNCTION morbac.detect_rule_conflicts(
     p_view       TEXT,
     p_context_id UUID,
     p_modality   morbac.modality,
-    p_exclude_id UUID DEFAULT NULL  -- exclude self on UPDATE
+    p_exclude_id UUID DEFAULT NULL
 )
 RETURNS TABLE(
     conflicting_rule_id  UUID,
@@ -145,6 +136,7 @@ COMMENT ON FUNCTION morbac.detect_rule_conflicts(UUID, UUID, TEXT, TEXT, UUID, m
 'Returns rules that directly conflict with the given tuple due to modality precedence (prohibition > obligation > recommendation > permission).';
 
 -- Trigger: warn (non-blocking) when a new/updated rule conflicts with an existing one
+
 CREATE OR REPLACE FUNCTION morbac.trg_warn_rule_conflicts()
 RETURNS TRIGGER
 LANGUAGE plpgsql

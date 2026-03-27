@@ -1,49 +1,31 @@
--- =============================================================================
--- UTILITY RESOURCE PATTERN (GUIDANCE)
--- =============================================================================
+-- Multi-org resource pattern (guidance):
 --
 -- For resources that belong to multiple organizations:
 --
--- Create resource table (org-neutral):
---    CREATE TABLE app.documents (
---        id UUID PRIMARY KEY,
---        content TEXT,
---        ...
---    );
+--   CREATE TABLE app.documents (id UUID PRIMARY KEY, content TEXT, ...);
 --
--- Create organization membership table:
---    CREATE TABLE app.document_orgs (
---        document_id UUID REFERENCES app.documents(id),
---        org_id UUID REFERENCES morbac.orgs(id),
---        PRIMARY KEY (document_id, org_id)
---    );
+--   CREATE TABLE app.document_orgs (
+--       document_id UUID REFERENCES app.documents(id),
+--       org_id UUID REFERENCES morbac.orgs(id),
+--       PRIMARY KEY (document_id, org_id)
+--   );
 --
--- Apply RLS with multi-org support:
---    ALTER TABLE app.documents ENABLE ROW LEVEL SECURITY;
+--   ALTER TABLE app.documents ENABLE ROW LEVEL SECURITY;
 --
---    CREATE POLICY document_select ON app.documents
---    FOR SELECT
---    USING (
---        EXISTS (
---            SELECT 1 FROM app.document_orgs do
---            WHERE do.document_id = app.documents.id
---              AND do.org_id = morbac.current_org_id()
---        )
---        AND morbac.rls_check('read', 'documents')
---    );
+--   CREATE POLICY document_select ON app.documents FOR SELECT
+--   USING (
+--       EXISTS (
+--           SELECT 1 FROM app.document_orgs do
+--           WHERE do.document_id = app.documents.id
+--             AND do.org_id = morbac.current_org_id()
+--       )
+--       AND morbac.rls_check('read', 'documents')
+--   );
 --
--- This pattern allows a resource to be visible in multiple organizations
+-- This allows a resource to be visible in multiple organizations
 -- while enforcing OrBAC policy within each organization context.
---
--- =============================================================================
-
--- =============================================================================
--- INSTALLATION COMPLETE
--- =============================================================================
 
 -- Grant usage on schema to public (adjust based on your security requirements)
 -- GRANT USAGE ON SCHEMA morbac TO public;
 -- GRANT SELECT ON ALL TABLES IN SCHEMA morbac TO public;
 -- GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA morbac TO public;
-
--- For production, create specific roles and grant appropriate privileges
