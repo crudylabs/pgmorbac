@@ -22,7 +22,7 @@ pgmorbac is built on these principles:
 1. **Pure PostgreSQL**: No external dependencies
 2. **Schema Isolation**: All objects in `morbac` schema
 3. **Default Deny**: No permission = access denied
-4. **Prohibition Precedence**: Prohibitions checked first, always override permissions
+4. **Prohibition Precedence**: Prohibitions override permissions at equal or unset priority; a permission with strictly higher priority wins
 5. **Organization-Centric**: All policies scoped to organizations
 6. **Multi-Tenant Native**: Users and resources can span organizations
 
@@ -39,16 +39,19 @@ flowchart TD
     D --> G
     E --> G
     F --> G
-    G --> H{Check Prohibitions}
-    H -->|Found| I[DENY]
-    H -->|Not Found| J{Check Permissions}
-    J -->|Found| K[ALLOW]
-    J -->|Not Found| L[DENY - Default]
+    G --> H[Find Highest-Priority Prohibition]
+    G --> I[Find Highest-Priority Permission]
+    H --> J{Compare Priorities}
+    I --> J
+    J -->|Permission priority > Prohibition priority| K[ALLOW]
+    J -->|Prohibition exists, no higher-priority permission| L[DENY]
+    J -->|No prohibition, permission found| K
+    J -->|Neither found| M[DENY - Default]
 ```
 
 ### Performance Optimizations
 
-**Prohibition-first checking:** Prohibitions are checked before permissions for early exit on denial.
+**Priority-based evaluation:** Both prohibitions and permissions are evaluated; the higher-priority rule wins. At equal or unset priority, prohibition overrides permission.
 
 **Indexed foreign keys:** All foreign key relationships have indexes for fast joins.
 
@@ -102,11 +105,11 @@ erDiagram
 
 **morbac.activities**: Abstract actions (global scope). Text primary key. Examples: `read`, `write`, `delete`, `approve`.
 
-**morbac.activity_hierarchy**: Activity inheritance via `(parent_activity, child_activity)`. Permission to parent grants child activities.
+**morbac.activity_hierarchy**: Activity inheritance via `(senior_activity, junior_activity)`. Permission on a senior activity also grants junior activities.
 
 **morbac.views**: Abstract object categories (global scope). Text primary key. Examples: `documents`, `reports`, `financial_data`.
 
-**morbac.view_hierarchy**: View inheritance via `(parent_view, child_view)`. Access to parent grants child views.
+**morbac.view_hierarchy**: View inheritance via `(senior_view, junior_view)`. Access on a senior view also grants junior views.
 
 **morbac.contexts**: Contextual conditions as callable predicates. Column `evaluator` (REGPROC) references a function returning BOOLEAN (preferably STABLE). Built-in context `always` returns true.
 
@@ -121,10 +124,10 @@ erDiagram
 Temporal role delegation with time bounds.
 
 **Key columns:**
-- `delegator_user_id`: User granting the role
-- `delegate_user_id`: User receiving the role
+- `delegator_id`: User granting the role
+- `delegatee_id`: User receiving the role
 - `role_id`, `org_id`: Role being delegated
-- `valid_from`, `valid_until`: Time window (NULL = indefinite)
+- `valid_from`, `valid_until`: Time window
 
 **Behavior:** Automatically included in `get_comprehensive_roles()` when active.
 
@@ -143,7 +146,7 @@ Explicit role prohibitions with highest precedence.
 Separation of Duty constraints enforce mutually exclusive roles.
 
 **Key columns:**
-- `role1_id`, `role2_id`: Conflicting role pair
+- `role_a_id`, `role_b_id`: Conflicting role pair
 - `org_id`: Organization scope
 - `description`: Explanation of conflict
 
@@ -154,8 +157,8 @@ Separation of Duty constraints enforce mutually exclusive roles.
 Constrains the number of users per role.
 
 **Key columns:**
-- `role_id`, `org_id`: Role to constrain
-- `min_users`: Minimum required users (default 0)
+- `role_id`: Role to constrain (primary key)
+- `min_users`: Minimum required users (NULL = no minimum)
 - `max_users`: Maximum allowed users (NULL = unlimited)
 
 **Behavior:** Validated via `check_cardinality_violation()` before role assignment.
@@ -165,11 +168,11 @@ Constrains the number of users per role.
 Dynamically computed roles via custom functions.
 
 **Key columns:**
-- `role_id`, `org_id`: Role to compute
-- `evaluator`: Function returning `TABLE(user_id UUID, org_id UUID)`
+- `role_id`: Role to compute (primary key)
+- `condition_evaluator`: Function `f(user_id UUID, org_id UUID) RETURNS BOOLEAN`
 - `description`: Explanation of computation logic
 
-**Behavior:** Function is called at runtime to determine role membership. Included in `get_comprehensive_roles()`.
+**Behavior:** Function is called at runtime to determine if a user has the role. Included in `get_comprehensive_roles()`.
 
 **morbac.cross_org_rules**
 
@@ -179,6 +182,7 @@ Inter-organizational access policies.
 - `source_org_id`: Organization where role is held
 - `target_org_id`: Organization where access is granted
 - `role_id`, `activity`, `view`: Policy specification
+- `context_id`: Contextual condition
 - `modality`: Permission or prohibition
 
 **Behavior:** Allows roles in source organization to access resources in target organization.
@@ -189,9 +193,9 @@ Administration meta-policies for delegated management.
 
 **Key columns:**
 - `org_id`, `role_id`: Role receiving admin capabilities
-- `can_manage_policies`: Can create/modify policies
-- `can_manage_roles`: Can create/modify roles
-- `can_manage_users`: Can assign/revoke user roles
+- `admin_activity`: Admin action (e.g., `create_rule`, `assign_role`, `delete_rule`)
+- `admin_target`: What can be administered (e.g., `rules`, `roles`, `users`)
+- `context_id`, `modality`: Context condition and permission/prohibition
 
 **Behavior:** Enables organization-scoped administrators without database superuser privileges.
 
@@ -201,8 +205,8 @@ Administration meta-policies for delegated management.
 
 Multi-OrBAC implements four modalities:
 
-1. **Permission**: Allows action (if no prohibition)
-2. **Prohibition**: Denies action (always wins)
+1. **Permission**: Allows action (if no higher-or-equal-priority prohibition)
+2. **Prohibition**: Denies action (wins at equal or unset priority; loses to higher-priority permission)
 3. **Obligation**: Must be done (informational only)
 4. **Recommendation**: Should be done (informational only)
 
@@ -212,11 +216,14 @@ Only permissions and prohibitions affect `is_allowed()` decisions.
 
 ```mermaid
 flowchart LR
-    A[Check Rule] --> B{Prohibition?}
-    B -->|Yes| C[DENY]
-    B -->|No| D{Permission?}
+    A[Applicable Rules] --> B[Highest-Priority Prohibition]
+    A --> C[Highest-Priority Permission]
+    B --> D{Permission priority\n> Prohibition priority?}
+    C --> D
     D -->|Yes| E[ALLOW]
-    D -->|No| F[DENY]
+    D -->|No, prohibition exists| F[DENY]
+    D -->|No prohibition, permission exists| E
+    D -->|Neither| G[DENY - Default]
 ```
 
 **Obligations and Recommendations**
@@ -438,7 +445,7 @@ Alice delegates her approver role to Bob for one week:
 
 ```sql
 INSERT INTO morbac.delegations (
-    delegator_user_id, delegate_user_id, role_id, org_id, valid_until
+    delegator_id, delegatee_id, role_id, org_id, valid_until
 ) VALUES (
     alice_id, bob_id, approver_role_id, org_id, NOW() + INTERVAL '7 days'
 );
@@ -473,12 +480,12 @@ The same person cannot both create and approve invoices:
 
 ```sql
 -- Define the conflict
-INSERT INTO morbac.sod_conflicts (role1_id, role2_id, org_id, description)
+INSERT INTO morbac.sod_conflicts (role_a_id, role_b_id, org_id, description)
 VALUES (creator_role_id, approver_role_id, org_id, 'Cannot create and approve');
 
 -- Check before assigning approver role to Alice (who is already a creator)
-SELECT morbac.check_sod_violation(alice_id, org_id);
--- Returns: ['invoice_creator', 'invoice_approver'] if conflict would occur
+SELECT morbac.check_sod_violation(alice_id, approver_role_id, org_id);
+-- Returns: TRUE if conflict would occur, FALSE if safe to assign
 ```
 
 ### Cardinality Constraints
@@ -490,11 +497,12 @@ Enforce minimum and maximum users per role.
 Require 2-5 administrators at all times:
 
 ```sql
-INSERT INTO morbac.role_cardinality (role_id, org_id, min_users, max_users)
-VALUES (admin_role_id, org_id, 2, 5);
+INSERT INTO morbac.role_cardinality (role_id, min_users, max_users)
+VALUES (admin_role_id, 2, 5);
 
--- Check before adding/removing admins
-SELECT morbac.check_cardinality_violation(admin_role_id, org_id);
+-- Check before adding an admin (pass FALSE when removing)
+SELECT morbac.check_cardinality_violation(admin_role_id);        -- adding (default)
+SELECT morbac.check_cardinality_violation(admin_role_id, FALSE); -- removing
 -- Returns: error message if would violate constraint, NULL if valid
 ```
 
@@ -534,14 +542,17 @@ Roles computed dynamically from application data.
 Automatically grant project_lead role to users leading projects:
 
 ```sql
--- Function returns users who are project leaders
-CREATE FUNCTION morbac.eval_project_leads()
-RETURNS TABLE(user_id UUID, org_id UUID) STABLE AS $$
-    SELECT lead_user_id, org_id FROM app.projects WHERE lead_user_id IS NOT NULL;
+-- Function returns TRUE if user is a project leader in the given org
+CREATE FUNCTION morbac.eval_project_lead(p_user_id UUID, p_org_id UUID)
+RETURNS BOOLEAN STABLE AS $$
+    SELECT EXISTS(
+        SELECT 1 FROM app.projects
+        WHERE lead_user_id = p_user_id AND org_id = p_org_id
+    );
 $$ LANGUAGE SQL;
 
-INSERT INTO morbac.derived_roles (role_id, org_id, evaluator)
-VALUES (project_lead_role_id, org_id, 'morbac.eval_project_leads'::regproc);
+INSERT INTO morbac.derived_roles (role_id, condition_evaluator)
+VALUES (project_lead_role_id, 'morbac.eval_project_lead'::regproc);
 
 -- Users automatically get project_lead permissions when they lead a project
 ```
@@ -556,9 +567,10 @@ Global auditors can review subsidiary financial data:
 
 ```sql
 INSERT INTO morbac.cross_org_rules (
-    source_org_id, target_org_id, role_id, activity, view, modality
+    source_org_id, target_org_id, role_id, activity, view, context_id, modality
 ) VALUES (
-    global_hq_id, subsidiary_id, auditor_role_id, 'read', 'financials', 'permission'
+    global_hq_id, subsidiary_id, auditor_role_id, 'read', 'financials',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'), 'permission'
 );
 
 -- Auditor from Global HQ can now access Subsidiary data
@@ -574,12 +586,13 @@ Delegate administrative capabilities to specific roles.
 HR can assign users to roles without being a superuser:
 
 ```sql
--- Grant HR the ability to manage user role assignments
-INSERT INTO morbac.admin_rules (org_id, role_id, can_manage_users)
-VALUES (org_id, hr_manager_role_id, true);
+-- Grant HR the ability to assign roles
+INSERT INTO morbac.admin_rules (org_id, role_id, admin_activity, admin_target, context_id, modality)
+VALUES (org_id, hr_manager_role_id, 'assign_role', 'roles',
+        (SELECT id FROM morbac.contexts WHERE name = 'always'), 'permission');
 
 -- Check if HR user can assign roles
-SELECT morbac.is_admin_allowed(hr_user_id, org_id, 'manage_users'); -- TRUE
+SELECT morbac.is_admin_allowed(hr_user_id, org_id, 'assign_role', 'roles'); -- TRUE
 ```
 
 ### Temporal Constraints
@@ -616,7 +629,7 @@ morbac.audit_log (
     old_data        JSONB,            -- Record state before change (UPDATE/DELETE)
     new_data        JSONB,            -- Record state after change (INSERT/UPDATE)
     changed_fields  TEXT[],           -- List of modified columns (UPDATE)
-    session_user    TEXT,             -- PostgreSQL session user
+    session_username TEXT,            -- PostgreSQL session user
     client_addr     INET,             -- Client IP address
     application_name TEXT,            -- Application name from connection
     metadata        JSONB             -- Additional custom metadata
@@ -648,7 +661,7 @@ SELECT morbac.disable_audit('user_roles');
 SELECT
     timestamp,
     operation,
-    session_user,
+    session_username,
     old_data->>'role_id' AS old_role,
     new_data->>'role_id' AS new_role
 FROM morbac.audit_log
@@ -698,7 +711,7 @@ SELECT morbac.is_allowed(user_uuid, org_uuid, 'read', 'documents');
 
 **`get_comprehensive_roles(user_id, org_id)`**: Returns all roles for user (direct, delegated, derived, hierarchy, minus negative assignments).
 
-**`get_effective_roles(user_id, org_id)`**: Alias for `get_comprehensive_roles()`.
+**`get_effective_roles(user_id, org_id)`**: Returns direct + role-hierarchy roles only (no delegations or derived roles). Use `get_comprehensive_roles()` for full resolution.
 
 ### Hierarchy Functions
 
@@ -721,17 +734,17 @@ SELECT * FROM morbac.get_org_scope(org_uuid, 'subtree', 2);
 
 ### Validation Functions
 
-**`check_sod_violation(user_id, org_id)`**: Returns empty array if valid, or array of conflicting role name pairs if violations exist.
+**`check_sod_violation(user_id, role_id, org_id)`**: Returns TRUE if assigning `role_id` to `user_id` would violate a Separation of Duty constraint, FALSE otherwise.
 
-**`check_cardinality_violation(role_id, org_id)`**: Returns error message if constraint violated, NULL if valid.
+**`check_cardinality_violation(role_id, adding?)`**: Returns error message if adding/removing a user would violate cardinality constraints, NULL if valid. `adding` defaults to TRUE.
 
 **`detect_rule_conflicts(org_id, role_id, activity, view, context_id, modality, exclude_id?)`**: Returns rows describing rules that directly conflict with the given tuple due to modality precedence. `exclude_id` is used on UPDATE to skip the rule being modified. Also fires automatically as a non-blocking trigger warning on every INSERT or UPDATE to `morbac.rules`.
 
 ### Administration Functions
 
-**`is_admin_allowed(user_id, org_id, capability)`**: Check administrative permissions. Capabilities: `manage_policies`, `manage_roles`, `manage_users`.
+**`is_admin_allowed(user_id, org_id, admin_activity, admin_target)`**: Check if user has administrative permission for the given activity/target combination.
 
-**`eval_derived_role(user_id, org_id, derived_role_id)`**: Evaluate if user has derived role.
+**`eval_derived_role(evaluator, user_id, org_id)`**: Evaluate a derived role condition function (REGPROC). Returns BOOLEAN.
 
 ### Context Functions
 
@@ -854,7 +867,7 @@ CREATE POLICY doc_access ON app.documents FOR SELECT USING (
 
 ### Optimization Strategies
 
-Prohibition-first checking provides early exit on denial for both security and performance.
+Priority-based evaluation compares the best prohibition and best permission in a single pass.
 
 For large hierarchies, use materialized views:
 
@@ -953,7 +966,7 @@ SELECT EXISTS(
 | Aspect | Traditional RBAC | Multi-OrBAC (pgmorbac) |
 |--------|-----------------|-------------------------|
 | **Multi-tenancy** | Single tenant or complex workarounds | Native multi-organization |
-| **Prohibition** | No standard support | First-class, always wins |
+| **Prohibition** | No standard support | First-class, wins at equal or unset priority |
 | **Context** | Static permissions | Dynamic, condition-based |
 | **Hierarchy** | Basic (roles only) | Full (orgs, roles, activities, views) |
 | **Delegation** | Manual implementation | Native temporal delegation |
