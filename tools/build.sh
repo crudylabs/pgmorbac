@@ -23,6 +23,7 @@ BUILD_FILES=(
     "organizations.sql"
     "activities.sql"
     "views.sql"
+    "activity_view_bindings.sql"
     "roles.sql"
     "hierarchy_functions.sql"
     "materialized_views.sql"

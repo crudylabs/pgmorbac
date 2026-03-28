@@ -80,10 +80,12 @@ erDiagram
     activities ||--o{ rules : "action"
     activities ||--o{ activity_hierarchy : "parent"
     activities ||--o{ activity_hierarchy : "child"
+    activities ||--o{ activity_view_bindings : "restricted_to"
 
     views ||--o{ rules : "target"
     views ||--o{ view_hierarchy : "parent"
     views ||--o{ view_hierarchy : "child"
+    views ||--o{ activity_view_bindings : "allowed_for"
 
     contexts ||--o{ rules : "condition"
 
@@ -198,6 +200,32 @@ Administration meta-policies for delegated management.
 - `context_id`, `modality`: Context condition and permission/prohibition
 
 **Behavior:** Enables organization-scoped administrators without database superuser privileges.
+
+**morbac.activity_view_bindings**
+
+Optional whitelist of valid (activity, view) pairs for rule creation.
+
+**Key columns:**
+- `activity`: Activity to restrict
+- `view`: Permitted view for that activity
+
+**Behavior:** Opt-in per activity. If any binding exists for an activity, rules (including cross-org rules) can only use listed views. Activities with no bindings are unconstrained. Enforced at the database level via triggers on `morbac.rules` and `morbac.cross_org_rules`.
+
+```sql
+-- Restrict 'approve' to invoices and contracts only
+INSERT INTO morbac.activity_view_bindings (activity, view) VALUES
+    ('approve', 'invoices'),
+    ('approve', 'contracts');
+
+-- This succeeds
+INSERT INTO morbac.rules (..., activity, view, ...) VALUES (..., 'approve', 'invoices', ...);
+
+-- This raises an exception
+INSERT INTO morbac.rules (..., activity, view, ...) VALUES (..., 'approve', 'user_profiles', ...);
+
+-- Remove all bindings to lift the restriction
+DELETE FROM morbac.activity_view_bindings WHERE activity = 'approve';
+```
 
 ## Core Concepts
 
