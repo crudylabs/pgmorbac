@@ -815,14 +815,6 @@ morbac.user_has_role(
 
 ### PostgREST Integration
 
-Configure PostgREST to pass user/org context via headers:
-
-```nginx
-# Nginx config
-proxy_set_header X-User-Id $user_id;
-proxy_set_header X-Org-Id $org_id;
-```
-
 Enable RLS and grant permissions:
 
 ```sql
@@ -833,23 +825,70 @@ GRANT SELECT ON ALL TABLES IN SCHEMA morbac TO postgrest_role;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA morbac TO postgrest_role;
 ```
 
-Create RLS policies:
+Create RLS policies. Pass the row's `org_id` column to `rls_check` so org scoping works in all modes:
 
 ```sql
 CREATE POLICY document_read ON app.documents
 FOR SELECT
-USING (morbac.rls_check('read', 'documents'));
+USING (morbac.rls_check('read', 'documents', org_id));
 
 CREATE POLICY document_write ON app.documents
 FOR INSERT
-WITH CHECK (morbac.rls_check('write', 'documents'));
+WITH CHECK (morbac.rls_check('write', 'documents', org_id));
 ```
 
-Alternative method using session variables:
+#### Org scoping modes
+
+`rls_check` resolves the org scope from session variables in priority order:
+
+| Session variable | Behaviour |
+|---|---|
+| `morbac.org_id` set | scoped to that single org |
+| `morbac.org_ids` set | scoped to the provided list of orgs |
+| neither set | all orgs the user belongs to |
+
+#### Setting context from HTTP headers
+
+Use a PostgREST [pre-request function](https://postgrest.org/en/stable/references/transactions.html#pre-request) to map headers to session variables:
 
 ```sql
-SET morbac.user_id = '123e4567-e89b-12d3-a456-426614174000';
-SET morbac.org_id = '987fcdeb-51a2-43d7-9c6e-5a8b7c9d0e1f';
+CREATE OR REPLACE FUNCTION app.set_morbac_context()
+RETURNS void LANGUAGE plpgsql AS $$
+DECLARE
+    v_headers json := current_setting('request.headers', true)::json;
+    v_user_id text := v_headers->>'x-user-id';
+    v_org_id  text := v_headers->>'x-org-id';
+    v_org_ids text := v_headers->>'x-org-ids';
+BEGIN
+    IF v_user_id IS NOT NULL THEN
+        PERFORM set_config('morbac.user_id', v_user_id, true);
+    END IF;
+
+    IF v_org_id IS NOT NULL THEN
+        PERFORM set_config('morbac.org_id', v_org_id, true);
+    ELSIF v_org_ids IS NOT NULL THEN
+        -- x-org-ids is a comma-separated list: uuid1,uuid2,...
+        PERFORM set_config('morbac.org_ids',
+            (SELECT json_agg(trim(u))::text FROM unnest(string_to_array(v_org_ids, ',')) u),
+            true);
+    END IF;
+END;
+$$;
+```
+
+In `postgrest.conf`:
+
+```ini
+db-pre-request = app.set_morbac_context
+```
+
+Header usage:
+
+```
+X-User-Id: <user-uuid>
+X-Org-Id:  <org-uuid>               # single org
+X-Org-Ids: <uuid1>,<uuid2>,<uuid3>  # multiple orgs, comma-separated
+                                    # omit both X-Org-Id and X-Org-Ids for all-orgs mode
 ```
 
 ### Application Integration
@@ -872,23 +911,6 @@ const client = await pool.connect();
 await client.query('SET morbac.user_id = $1', [userId]);
 await client.query('SET morbac.org_id = $1', [orgId]);
 const res = await client.query('SELECT * FROM app.documents');
-```
-
-### Multi-Organization Resources
-
-Resources can belong to multiple organizations using a junction table:
-
-```sql
--- Application defines document-org relationships
--- morbac.rls_check() enforces access rules
-CREATE POLICY doc_access ON app.documents FOR SELECT USING (
-    EXISTS (
-        SELECT 1 FROM app.document_orgs
-        WHERE document_id = app.documents.id
-          AND org_id = morbac.current_org_id()
-    )
-    AND morbac.rls_check('read', 'documents')
-);
 ```
 
 ## Performance

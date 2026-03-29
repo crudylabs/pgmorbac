@@ -13,7 +13,7 @@
 --   7. Policy DSL idempotency — compile_policy() is safe to run multiple times
 --   8. Policy DSL error handling — reports errors for missing org/role
 --   9. Derived roles — computed via evaluator function
---  10. RLS helper: rls_check() with session variables
+--  10. RLS helpers: get_user_orgs, current_org_ids, rls_check() org scoping
 --
 -- Prerequisites: 00_setup.sql -> 08_admin.sql
 -- =============================================================================
@@ -500,45 +500,117 @@ WHERE user_id = '30000000-0000-0000-0000-000000000004'
 -- Section 10: RLS helper functions
 -- ---------------------------------------------------------------------------
 \echo ''
-\echo '--- 10. RLS helper: current_user_id, current_org_id, rls_check ---'
+\echo '--- 10. RLS helpers: get_user_orgs, current_org_ids, rls_check ---'
 
--- Without session variables set, current_user_id and current_org_id return NULL
+-- Without session variables set, current_user_id / current_org_id / current_org_ids return NULL
 SELECT morbac.t_null('current_user_id() returns NULL without session var',
     morbac.current_user_id()::text);
 
 SELECT morbac.t_null('current_org_id() returns NULL without session var',
     morbac.current_org_id()::text);
 
--- rls_check without session context returns FALSE (no user/org)
+SELECT morbac.t_null('current_org_ids() returns NULL without session var',
+    morbac.current_org_ids()::text);
+
+-- rls_check without any session context returns FALSE
 SELECT morbac.t('rls_check without session context returns FALSE',
     morbac.rls_check('read', 'documents'),
     FALSE);
 
--- Set session variables (Dave at GlobalTech)
--- rls_check reads morbac.user_id and morbac.org_id session variables
+-- get_user_orgs: Judy has roles in Engineering and Sales (2 orgs)
+SELECT morbac.t_eq('get_user_orgs(Judy) returns 2 orgs',
+    (SELECT COUNT(*) FROM morbac.get_user_orgs('30000000-0000-0000-0000-000000000010'::uuid))::bigint,
+    2);
+
+SELECT morbac.t('get_user_orgs(Judy) includes Engineering',
+    EXISTS(SELECT 1 FROM morbac.get_user_orgs('30000000-0000-0000-0000-000000000010'::uuid)
+           WHERE org_id = '10000000-0000-0000-0000-000000000002'),
+    TRUE);
+
+SELECT morbac.t('get_user_orgs(Judy) includes Sales',
+    EXISTS(SELECT 1 FROM morbac.get_user_orgs('30000000-0000-0000-0000-000000000010'::uuid)
+           WHERE org_id = '10000000-0000-0000-0000-000000000003'),
+    TRUE);
+
+-- get_user_orgs: Karl has no roles anywhere
+SELECT morbac.t_eq('get_user_orgs(Karl) returns 0 orgs',
+    (SELECT COUNT(*) FROM morbac.get_user_orgs('30000000-0000-0000-0000-000000000011'::uuid))::bigint,
+    0);
+
+-- Single-org mode: morbac.org_id set
 SET morbac.user_id = '30000000-0000-0000-0000-000000000004';
 SET morbac.org_id  = '10000000-0000-0000-0000-000000000001';
 
--- rls_check uses morbac.user_id / morbac.org_id session vars
 SELECT morbac.t('rls_check(read, documents) as Dave at GlobalTech',
     morbac.rls_check('read', 'documents'),
     TRUE);
 
--- rls_check for activity Dave cannot do
 SELECT morbac.t('rls_check(approve, documents) as Dave at GlobalTech [no permission]',
     morbac.rls_check('approve', 'documents'),
     FALSE);
 
--- Switch to Karl (no role)
-SET morbac.user_id = '30000000-0000-0000-0000-000000000011';
+-- Row org matches session org -> allowed
+SELECT morbac.t('rls_check with matching row org_id allows access',
+    morbac.rls_check('read', 'documents', '10000000-0000-0000-0000-000000000001'),
+    TRUE);
 
-SELECT morbac.t('rls_check(read, documents) as Karl (no role) [denied]',
+-- Row org does not match session org -> denied regardless of permissions
+SELECT morbac.t('rls_check with non-matching row org_id denies access',
+    morbac.rls_check('read', 'documents', '10000000-0000-0000-0000-000000000002'),
+    FALSE);
+
+RESET morbac.org_id;
+
+-- Org-list mode: morbac.org_ids set (Judy in Engineering + Sales)
+SET morbac.user_id = '30000000-0000-0000-0000-000000000010';
+SET morbac.org_ids = '["10000000-0000-0000-0000-000000000002","10000000-0000-0000-0000-000000000003"]';
+
+-- Row in Engineering: Judy is engineer there -> can read documents
+SELECT morbac.t('rls_check org_ids mode: Judy reads documents in Engineering [allowed]',
+    morbac.rls_check('read', 'documents', '10000000-0000-0000-0000-000000000002'),
+    TRUE);
+
+-- Row in Sales: Judy is sales_rep -> can read documents there too
+SELECT morbac.t('rls_check org_ids mode: Judy reads documents in Sales [allowed]',
+    morbac.rls_check('read', 'documents', '10000000-0000-0000-0000-000000000003'),
+    TRUE);
+
+-- Row in GlobalTech: not in org_ids list -> denied
+SELECT morbac.t('rls_check org_ids mode: row org not in list [denied]',
+    morbac.rls_check('read', 'documents', '10000000-0000-0000-0000-000000000001'),
+    FALSE);
+
+-- No row org provided with org_ids set -> denied
+SELECT morbac.t('rls_check org_ids mode: no row org_id [denied]',
     morbac.rls_check('read', 'documents'),
     FALSE);
 
--- Reset session to avoid polluting other queries
+RESET morbac.org_ids;
+
+-- All-orgs mode: no org_id / org_ids set, row org_id provided
+-- Judy can read documents in Engineering
+SELECT morbac.t('rls_check all-orgs mode: Judy reads documents in Engineering [allowed]',
+    morbac.rls_check('read', 'documents', '10000000-0000-0000-0000-000000000002'),
+    TRUE);
+
+-- Judy has no role at GlobalTech -> denied even in all-orgs mode
+SELECT morbac.t('rls_check all-orgs mode: Judy reads documents in GlobalTech [no role, denied]',
+    morbac.rls_check('read', 'documents', '10000000-0000-0000-0000-000000000001'),
+    FALSE);
+
+-- No row org and no session org -> denied
+SELECT morbac.t('rls_check all-orgs mode: no row org_id [denied]',
+    morbac.rls_check('read', 'documents'),
+    FALSE);
+
+-- Karl has no role anywhere -> denied in all modes
+SET morbac.user_id = '30000000-0000-0000-0000-000000000011';
+
+SELECT morbac.t('rls_check(read, documents) as Karl (no role) [denied]',
+    morbac.rls_check('read', 'documents', '10000000-0000-0000-0000-000000000001'),
+    FALSE);
+
 RESET morbac.user_id;
-RESET morbac.org_id;
 
 \echo ''
 \echo '=== Utilities, Derived Roles, RLS, and Policy DSL Tests Completed ==='
