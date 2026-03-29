@@ -23,7 +23,7 @@ pgmorbac is built on these principles:
 2. **Schema Isolation**: All objects in `morbac` schema
 3. **Default Deny**: No permission = access denied
 4. **Prohibition Precedence**: Prohibitions override permissions at equal or unset priority; a permission with strictly higher priority wins
-5. **Organization-Centric**: All policies scoped to organizations
+5. **Organization-Centric**: All rules scoped to organizations
 6. **Multi-Tenant Native**: Users and resources can span organizations
 
 ### Authorization Flow
@@ -115,7 +115,7 @@ erDiagram
 
 **morbac.contexts**: Contextual conditions as callable predicates. Column `evaluator` (REGPROC) references a function returning BOOLEAN (preferably STABLE). Built-in context `always` returns true.
 
-**morbac.rules**: Core policy rules linking org, role, activity, view, context, and modality. Indexed on `(org_id, role_id, activity, view, modality)` for fast lookups.
+**morbac.rules**: Core rules linking org, role, activity, view, context, and modality. Indexed on `(org_id, role_id, activity, view, modality)` for fast lookups.
 
 **morbac.policy**: Policy DSL using names instead of UUIDs. Insert here, then call `compile_policy()` to generate rules.
 
@@ -178,12 +178,12 @@ Dynamically computed roles via custom functions.
 
 **morbac.cross_org_rules**
 
-Inter-organizational access policies.
+Inter-organizational access rules.
 
 **Key columns:**
 - `source_org_id`: Organization where role is held
 - `target_org_id`: Organization where access is granted
-- `role_id`, `activity`, `view`: Policy specification
+- `role_id`, `activity`, `view`: Rule specification
 - `context_id`: Contextual condition
 - `modality`: Permission or prohibition
 
@@ -191,7 +191,7 @@ Inter-organizational access policies.
 
 **morbac.admin_rules**
 
-Administration meta-policies for delegated management.
+Administration rules for delegated management.
 
 **Key columns:**
 - `org_id`, `role_id`: Role receiving admin capabilities
@@ -362,7 +362,7 @@ SELECT * FROM morbac.compile_policy();
 **When to Use Policy DSL vs Direct Rules:**
 
 - **Use Policy DSL**: Initial setup, bulk imports, human-readable policy files
-- **Use Direct Rules**: Dynamic policies, application-generated rules, when you already have UUIDs
+- **Use Direct Rules**: Dynamic rules, application-generated rules, when you already have UUIDs
 
 ## Advanced Features
 
@@ -405,7 +405,7 @@ FROM morbac.get_org_scope(:region_org_id, 'children');
 
 **Example: Two levels deep**
 
-A policy that covers a org, its direct children, and their children:
+A rule that covers an org, its direct children, and their children:
 
 ```sql
 INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
@@ -536,7 +536,7 @@ SELECT morbac.check_cardinality_violation(admin_role_id, FALSE); -- removing
 
 ### Rule Conflict Detection
 
-When inserting or updating a rule, pgmorbac automatically warns if the new rule conflicts with an existing one due to modality precedence. Conflicts are non-blocking (the insert succeeds) but a `WARNING` is emitted so you can catch unintentional policy contradictions.
+When inserting or updating a rule, pgmorbac automatically warns if the new rule conflicts with an existing one due to modality precedence. Conflicts are non-blocking (the insert succeeds) but a `WARNING` is emitted so you can catch unintentional rule contradictions.
 
 A conflict is flagged when two rules share the same `(org, role, activity, view, context)` tuple and their modalities create a dead rule:
 
@@ -1022,7 +1022,7 @@ SELECT EXISTS(
 | **Delegation** | Manual implementation | Native temporal delegation |
 | **SoD** | Application logic | Database-enforced constraints |
 | **Cross-tenant** | Not supported | Native cross-org rules |
-| **Audit** | Application layer | Meta-policies (admin rules) |
+| **Audit** | Application layer | Admin rules |
 
 ---
 
