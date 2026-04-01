@@ -15,6 +15,7 @@
 -- - rules.scope controls which orgs a rule covers (self/subtree/descendants/...).
 --   Evaluated at query time via org_in_scope() — new orgs are covered automatically.
 -- - cross_org_rules.source_org_id is always required: user must hold the role there.
+-- - user_rules target a specific user directly (no role required).
 
 CREATE OR REPLACE FUNCTION morbac.is_allowed_nocache(
     p_user_id UUID,
@@ -70,7 +71,27 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- STEP 3: Local permissions — find the highest-priority applicable one
+    -- STEP 3: User-level prohibitions — direct user rules, update max if higher
+    FOR v_rule IN
+        SELECT ur.context_id, COALESCE(ur.priority, 0) AS prio
+        FROM morbac.user_rules ur
+        WHERE ur.user_id = p_user_id
+          AND ur.org_id = p_org_id
+          AND ur.modality = 'prohibition'
+          AND ur.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
+          AND ur.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
+          AND morbac.is_rule_valid(ur.valid_from, ur.valid_until)
+        ORDER BY COALESCE(ur.priority, 0) DESC
+    LOOP
+        IF morbac.eval_context(v_rule.context_id) THEN
+            IF v_max_prohibition_priority IS NULL OR v_rule.prio > v_max_prohibition_priority THEN
+                v_max_prohibition_priority := v_rule.prio;
+            END IF;
+            EXIT;
+        END IF;
+    END LOOP;
+
+    -- STEP 4: Local permissions — find the highest-priority applicable one
     FOR v_rule IN
         SELECT r.context_id, COALESCE(r.priority, 0) AS prio
         FROM morbac.rules r
@@ -88,7 +109,7 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- STEP 4: Cross-org permissions — update max if higher found
+    -- STEP 5: Cross-org permissions — update max if higher found
     FOR v_rule IN
         SELECT cr.context_id, COALESCE(cr.priority, 0) AS prio
         FROM morbac.cross_org_rules cr
@@ -108,7 +129,27 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- STEP 5: Priority resolution
+    -- STEP 6: User-level permissions — direct user rules, update max if higher
+    FOR v_rule IN
+        SELECT ur.context_id, COALESCE(ur.priority, 0) AS prio
+        FROM morbac.user_rules ur
+        WHERE ur.user_id = p_user_id
+          AND ur.org_id = p_org_id
+          AND ur.modality = 'permission'
+          AND ur.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
+          AND ur.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
+          AND morbac.is_rule_valid(ur.valid_from, ur.valid_until)
+        ORDER BY COALESCE(ur.priority, 0) DESC
+    LOOP
+        IF morbac.eval_context(v_rule.context_id) THEN
+            IF v_max_permission_priority IS NULL OR v_rule.prio > v_max_permission_priority THEN
+                v_max_permission_priority := v_rule.prio;
+            END IF;
+            EXIT;
+        END IF;
+    END LOOP;
+
+    -- STEP 7: Priority resolution
     IF v_max_prohibition_priority IS NULL THEN
         RETURN v_max_permission_priority IS NOT NULL;
     END IF;

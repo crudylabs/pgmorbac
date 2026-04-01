@@ -161,6 +161,25 @@ CREATE POLICY delegations_delete ON morbac.delegations FOR DELETE
     USING (morbac.is_allowed(morbac.current_user_id(), org_id, 'delete',
         morbac.get_config('system_view.delegations')));
 
+-- morbac.user_rules
+ALTER TABLE morbac.user_rules ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY user_rules_select ON morbac.user_rules FOR SELECT
+    USING (morbac.is_allowed(morbac.current_user_id(), org_id, 'read',
+        morbac.get_config('system_view.user_rules')));
+
+CREATE POLICY user_rules_insert ON morbac.user_rules FOR INSERT
+    WITH CHECK (morbac.is_allowed(morbac.current_user_id(), org_id, 'create',
+        morbac.get_config('system_view.user_rules')));
+
+CREATE POLICY user_rules_update ON morbac.user_rules FOR UPDATE
+    USING (morbac.is_allowed(morbac.current_user_id(), org_id, 'update',
+        morbac.get_config('system_view.user_rules')));
+
+CREATE POLICY user_rules_delete ON morbac.user_rules FOR DELETE
+    USING (morbac.is_allowed(morbac.current_user_id(), org_id, 'delete',
+        morbac.get_config('system_view.user_rules')));
+
 -- morbac.cross_org_rules
 ALTER TABLE morbac.cross_org_rules ENABLE ROW LEVEL SECURITY;
 

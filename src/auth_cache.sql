@@ -100,6 +100,31 @@ CREATE TRIGGER trg_invalidate_cache_cross_org
 AFTER INSERT OR UPDATE OR DELETE ON morbac.cross_org_rules
 FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
 
+CREATE OR REPLACE FUNCTION morbac.invalidate_cache_on_user_rule_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_user_id UUID;
+    v_org_id  UUID;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        v_user_id := OLD.user_id;
+        v_org_id  := OLD.org_id;
+    ELSE
+        v_user_id := NEW.user_id;
+        v_org_id  := NEW.org_id;
+    END IF;
+    DELETE FROM morbac.auth_cache WHERE user_id = v_user_id AND org_id = v_org_id;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE TRIGGER trg_invalidate_cache_user_rules
+AFTER INSERT OR UPDATE OR DELETE ON morbac.user_rules
+FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_user_rule_change();
+
 -- Refresh materialized hierarchy views when hierarchies change
 
 CREATE OR REPLACE FUNCTION morbac.refresh_on_hierarchy_change()

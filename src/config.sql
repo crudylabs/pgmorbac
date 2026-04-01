@@ -22,7 +22,8 @@ INSERT INTO morbac.config (key, value, description) VALUES
     ('system_view.activities',      'activities',      'View name for morbac.activities table access control'),
     ('system_view.views',           'views',           'View name for morbac.views table access control'),
     ('system_view.delegations',     'delegations',     'View name for morbac.delegations table access control'),
-    ('system_view.cross_org_rules', 'cross_org_rules', 'View name for morbac.cross_org_rules table access control');
+    ('system_view.cross_org_rules', 'cross_org_rules', 'View name for morbac.cross_org_rules table access control'),
+    ('system_view.user_rules',      'user_rules',      'View name for morbac.user_rules table access control');
 
 CREATE OR REPLACE FUNCTION morbac.get_config(p_key TEXT)
 RETURNS TEXT

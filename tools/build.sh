@@ -29,6 +29,7 @@ BUILD_FILES=(
     "contexts.sql"
     "rules.sql"
     "cross_org_rules.sql"
+    "user_rules.sql"
     "activity_view_bindings.sql"
     "obligations.sql"
     "audit.sql"

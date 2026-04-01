@@ -48,6 +48,30 @@ $$;
 COMMENT ON FUNCTION morbac.current_org_id() IS
 'Returns current organization ID from morbac.org_id session variable';
 
+CREATE OR REPLACE FUNCTION morbac.current_target_user_id()
+RETURNS UUID
+LANGUAGE plpgsql
+STABLE
+AS $$
+DECLARE
+    v_user_id TEXT;
+BEGIN
+    v_user_id := current_setting('morbac.target_user_id', TRUE);
+
+    IF v_user_id IS NULL OR v_user_id = '' THEN
+        RETURN NULL;
+    END IF;
+
+    RETURN v_user_id::UUID;
+EXCEPTION
+    WHEN OTHERS THEN
+        RETURN NULL;
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.current_target_user_id() IS
+'Returns target user ID filter from morbac.target_user_id session variable';
+
 -- Set via: SET morbac.org_ids = '["uuid1","uuid2"]'
 CREATE OR REPLACE FUNCTION morbac.current_org_ids()
 RETURNS UUID[]
@@ -94,25 +118,36 @@ COMMENT ON FUNCTION morbac.get_user_orgs(UUID) IS
 'Returns all org IDs the user has any direct role or active delegation in';
 
 -- Org scoping: morbac.org_id (single) > morbac.org_ids (list) > all orgs.
--- Pass the row org_id column to enable scoping: rls_check('read', 'docs', org_id)
+-- User scoping: morbac.target_user_id filters rows to a specific user.
+-- Pass row columns to enable scoping: rls_check('read', 'docs', org_id, user_id)
 CREATE OR REPLACE FUNCTION morbac.rls_check(
-    p_activity   TEXT,
-    p_view       TEXT,
-    p_row_org_id UUID DEFAULT NULL
+    p_activity    TEXT,
+    p_view        TEXT,
+    p_row_org_id  UUID DEFAULT NULL,
+    p_row_user_id UUID DEFAULT NULL
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 STABLE
 AS $$
 DECLARE
-    v_user_id UUID;
-    v_org_id  UUID;
-    v_org_ids UUID[];
+    v_user_id        UUID;
+    v_org_id         UUID;
+    v_org_ids        UUID[];
+    v_target_user_id UUID;
 BEGIN
     v_user_id := morbac.current_user_id();
 
     IF v_user_id IS NULL THEN
         RETURN FALSE;
+    END IF;
+
+    -- User filter: if morbac.target_user_id is set, only rows matching that user pass
+    IF p_row_user_id IS NOT NULL THEN
+        v_target_user_id := morbac.current_target_user_id();
+        IF v_target_user_id IS NOT NULL AND p_row_user_id <> v_target_user_id THEN
+            RETURN FALSE;
+        END IF;
     END IF;
 
     v_org_id := morbac.current_org_id();
@@ -141,5 +176,5 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION morbac.rls_check(TEXT, TEXT, UUID) IS
-'RLS helper: checks if current user is allowed to perform activity on view. Pass row org_id to enable org scoping (single org, org list, or all orgs).';
+COMMENT ON FUNCTION morbac.rls_check(TEXT, TEXT, UUID, UUID) IS
+'RLS helper: checks if current user is allowed to perform activity on view. Pass row org_id for org scoping (single org, org list, or all orgs). Pass row user_id to filter by morbac.target_user_id session variable.';
