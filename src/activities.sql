@@ -23,3 +23,10 @@ CREATE INDEX idx_activity_hierarchy_junior ON morbac.activity_hierarchy(junior_a
 COMMENT ON TABLE morbac.activity_hierarchy IS 'Activity hierarchy - senior activities imply junior activities';
 COMMENT ON COLUMN morbac.activity_hierarchy.senior_activity IS 'Senior activity (implies junior)';
 COMMENT ON COLUMN morbac.activity_hierarchy.junior_activity IS 'Junior activity (implied by senior)';
+
+INSERT INTO morbac.activities (name, description) VALUES
+    ('create', 'Create new entities'),
+    ('read',   'Read or list entities'),
+    ('update', 'Modify existing entities'),
+    ('delete', 'Remove entities')
+ON CONFLICT (name) DO NOTHING;

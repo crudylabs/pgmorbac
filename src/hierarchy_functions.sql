@@ -1,9 +1,15 @@
 -- Transitive closure and effective role/activity/view lookup functions
+--
+-- All functions that query morbac tables are SECURITY DEFINER so they run
+-- as the extension owner and bypass RLS on morbac tables. This prevents
+-- infinite recursion when RLS policies call is_allowed(), which in turn
+-- calls these functions.
 
 CREATE OR REPLACE FUNCTION morbac.get_org_ancestors(p_org_id UUID)
 RETURNS TABLE(org_id UUID, depth INTEGER)
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
 BEGIN
     RETURN QUERY
@@ -26,6 +32,7 @@ CREATE OR REPLACE FUNCTION morbac.get_org_descendants(p_org_id UUID)
 RETURNS TABLE(org_id UUID, depth INTEGER)
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
 BEGIN
     RETURN QUERY
@@ -64,6 +71,7 @@ CREATE OR REPLACE FUNCTION morbac.get_org_scope(
 RETURNS TABLE(org_id UUID, depth INTEGER)
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
 BEGIN
     CASE p_scope
@@ -131,6 +139,7 @@ CREATE OR REPLACE FUNCTION morbac.get_effective_roles(p_user_id UUID, p_org_id U
 RETURNS TABLE(role_id UUID, depth INTEGER)
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
 BEGIN
     RETURN QUERY
@@ -157,6 +166,7 @@ CREATE OR REPLACE FUNCTION morbac.get_inherited_roles(p_role_id UUID)
 RETURNS TABLE(role_id UUID, depth INTEGER)
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
 BEGIN
     RETURN QUERY
@@ -180,6 +190,7 @@ CREATE OR REPLACE FUNCTION morbac.get_effective_activities(p_activity TEXT)
 RETURNS TABLE(activity TEXT, depth INTEGER)
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
 BEGIN
     RETURN QUERY
@@ -203,6 +214,7 @@ CREATE OR REPLACE FUNCTION morbac.get_effective_views(p_view TEXT)
 RETURNS TABLE(view TEXT, depth INTEGER)
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
 BEGIN
     RETURN QUERY
@@ -226,6 +238,7 @@ CREATE OR REPLACE FUNCTION morbac.get_comprehensive_roles(p_user_id UUID, p_org_
 RETURNS TABLE(role_id UUID, source TEXT, depth INTEGER)
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
 BEGIN
     RETURN QUERY
@@ -303,6 +316,7 @@ CREATE OR REPLACE FUNCTION morbac.eval_derived_role(
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
 DECLARE
     v_result BOOLEAN;
@@ -317,3 +331,29 @@ $$;
 
 COMMENT ON FUNCTION morbac.eval_derived_role(REGPROC, UUID, UUID) IS
 'Evaluates a derived role condition function';
+
+-- Check if p_target_org_id falls within the scope of p_rule_org_id.
+-- Used by the authorization engine to evaluate scoped rules at query time.
+CREATE OR REPLACE FUNCTION morbac.org_in_scope(
+    p_target_org_id UUID,
+    p_rule_org_id   UUID,
+    p_scope         TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+AS $$
+BEGIN
+    IF p_scope = 'self' THEN
+        RETURN p_target_org_id = p_rule_org_id;
+    END IF;
+    RETURN EXISTS(
+        SELECT 1 FROM morbac.get_org_scope(p_rule_org_id, p_scope)
+        WHERE org_id = p_target_org_id
+    );
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.org_in_scope(UUID, UUID, TEXT) IS
+'Returns TRUE if p_target_org_id is within get_org_scope(p_rule_org_id, p_scope). SECURITY DEFINER to bypass RLS on morbac.orgs.';

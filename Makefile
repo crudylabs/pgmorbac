@@ -7,7 +7,7 @@ PROJECT_FILENAME = pgmorbac
 PROJECT_VERSION = $(shell ./tools/get_version.sh $(PROJECT_FILENAME).control)
 
 # Docker configuration
-DOCKER_CONTAINER ?= postgres
+DOCKER_CONTAINER ?= pgmorbac_postgres_test
 DOCKER_PORT ?= 5432
 
 # For development, work on source files in src/

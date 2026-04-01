@@ -10,6 +10,11 @@
 -- - Each rule has an optional integer priority (NULL = 0, lowest)
 -- - When both a prohibition and a permission apply, the higher-priority rule wins
 -- - Tie goes to prohibition (modality precedence from the Multi-OrBAC paper)
+--
+-- Scope:
+-- - rules.scope controls which orgs a rule covers (self/subtree/descendants/...).
+--   Evaluated at query time via org_in_scope() — new orgs are covered automatically.
+-- - cross_org_rules.source_org_id is always required: user must hold the role there.
 
 CREATE OR REPLACE FUNCTION morbac.is_allowed_nocache(
     p_user_id UUID,
@@ -20,6 +25,7 @@ CREATE OR REPLACE FUNCTION morbac.is_allowed_nocache(
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
 DECLARE
     v_rule                     RECORD;
@@ -30,11 +36,11 @@ BEGIN
     FOR v_rule IN
         SELECT r.context_id, COALESCE(r.priority, 0) AS prio
         FROM morbac.rules r
-        WHERE r.org_id = p_org_id
+        WHERE morbac.org_in_scope(p_org_id, r.org_id, r.scope)
           AND r.modality = 'prohibition'
           AND r.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
           AND r.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
-          AND r.role_id  IN (SELECT role_id  FROM morbac.get_comprehensive_roles(p_user_id, p_org_id))
+          AND r.role_id  IN (SELECT role_id  FROM morbac.get_comprehensive_roles(p_user_id, r.org_id))
           AND morbac.is_rule_valid(r.valid_from, r.valid_until)
         ORDER BY COALESCE(r.priority, 0) DESC
     LOOP
@@ -52,7 +58,7 @@ BEGIN
           AND cr.modality = 'prohibition'
           AND cr.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
           AND cr.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
-          AND cr.role_id  IN (SELECT role_id  FROM morbac.get_comprehensive_roles(p_user_id, cr.source_org_id))
+          AND cr.role_id IN (SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, cr.source_org_id))
           AND morbac.is_rule_valid(cr.valid_from, cr.valid_until)
         ORDER BY COALESCE(cr.priority, 0) DESC
     LOOP
@@ -68,11 +74,11 @@ BEGIN
     FOR v_rule IN
         SELECT r.context_id, COALESCE(r.priority, 0) AS prio
         FROM morbac.rules r
-        WHERE r.org_id = p_org_id
+        WHERE morbac.org_in_scope(p_org_id, r.org_id, r.scope)
           AND r.modality = 'permission'
           AND r.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
           AND r.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
-          AND r.role_id  IN (SELECT role_id  FROM morbac.get_comprehensive_roles(p_user_id, p_org_id))
+          AND r.role_id  IN (SELECT role_id  FROM morbac.get_comprehensive_roles(p_user_id, r.org_id))
           AND morbac.is_rule_valid(r.valid_from, r.valid_until)
         ORDER BY COALESCE(r.priority, 0) DESC
     LOOP
@@ -90,7 +96,7 @@ BEGIN
           AND cr.modality = 'permission'
           AND cr.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
           AND cr.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
-          AND cr.role_id  IN (SELECT role_id  FROM morbac.get_comprehensive_roles(p_user_id, cr.source_org_id))
+          AND cr.role_id IN (SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, cr.source_org_id))
           AND morbac.is_rule_valid(cr.valid_from, cr.valid_until)
         ORDER BY COALESCE(cr.priority, 0) DESC
     LOOP
@@ -129,6 +135,7 @@ CREATE OR REPLACE FUNCTION morbac.is_allowed(
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 VOLATILE
+SECURITY DEFINER
 AS $$
 DECLARE
     v_cached_result BOOLEAN;

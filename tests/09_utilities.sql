@@ -1,5 +1,5 @@
 -- =============================================================================
--- Utilities, Derived Roles, RLS, and Policy DSL Tests
+-- Utilities, Derived Roles, and RLS Tests
 -- =============================================================================
 -- Tests miscellaneous utility functions and advanced features:
 --
@@ -10,17 +10,15 @@
 --   4. user_has_role — checks if user holds a named role
 --   5. user_roles_in_org — lists all roles for user in org
 --   6. eval_context — evaluates context predicates directly
---   7. Policy DSL idempotency — compile_policy() is safe to run multiple times
---   8. Policy DSL error handling — reports errors for missing org/role
---   9. Derived roles — computed via evaluator function
---  10. RLS helpers: get_user_orgs, current_org_ids, rls_check() org scoping
+--   7. Derived roles — computed via evaluator function
+--   8. RLS helpers: get_user_orgs, current_org_ids, rls_check() org scoping
 --
--- Prerequisites: 00_setup.sql -> 08_admin.sql
+-- Prerequisites: 00_setup.sql -> 08_system_access.sql
 -- =============================================================================
 
 \echo ''
 \echo '================================================================'
-\echo '09 — UTILITIES, DERIVED ROLES, RLS, POLICY DSL'
+\echo '09 — UTILITIES, DERIVED ROLES, RLS'
 \echo '================================================================'
 
 -- ---------------------------------------------------------------------------
@@ -327,70 +325,10 @@ SELECT morbac.t('eval_context(end_of_quarter) = TRUE',
     TRUE);
 
 -- ---------------------------------------------------------------------------
--- Section 7: Policy DSL — idempotency
+-- Section 7: Derived roles
 -- ---------------------------------------------------------------------------
 \echo ''
-\echo '--- 7. Policy DSL idempotency ---'
-
--- All existing policies are already compiled (compiled=TRUE)
--- Running compile_policy() again should compile 0 new entries
-SELECT morbac.t_eq('Re-running compile_policy() gives compiled_count=0 (all already compiled)',
-    (SELECT compiled_count FROM morbac.compile_policy()),
-    0);
-
-SELECT morbac.t_eq('Re-running compile_policy() gives error_count=0',
-    (SELECT error_count FROM morbac.compile_policy()),
-    0);
-
--- Adding a new policy and verifying it compiles once but not twice
-INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, context_name)
-VALUES ('GlobalTech HQ', 'employee', 'read', 'contracts', 'permission', 'always');
-
-SELECT morbac.t_eq('compile_policy() compiles 1 new policy entry',
-    (SELECT compiled_count FROM morbac.compile_policy()),
-    1);
-
-SELECT morbac.t_eq('compile_policy() is idempotent: compiled_count=0 on second run',
-    (SELECT compiled_count FROM morbac.compile_policy()),
-    0);
-
--- Verify the rule was actually created
-SELECT morbac.t_eq('Rule for employee read contracts was created',
-    (SELECT COUNT(*) FROM morbac.rules r
-     JOIN morbac.roles ro ON ro.id = r.role_id
-     WHERE ro.name = 'employee'
-       AND r.activity = 'read' AND r.view = 'contracts' AND r.modality = 'permission')::bigint,
-    1);
-
--- ---------------------------------------------------------------------------
--- Section 8: Policy DSL — error handling
--- ---------------------------------------------------------------------------
-\echo ''
-\echo '--- 8. Policy DSL error handling ---'
-
--- Insert a policy for a non-existent organization
-INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, context_name)
-VALUES ('Nonexistent Corp', 'employee', 'read', 'documents', 'permission', 'always');
-
--- Should produce errors (org not found)
-SELECT morbac.t('compile_policy: nonexistent org produces errors',
-    (SELECT error_count > 0 FROM morbac.compile_policy()),
-    TRUE);
-
--- Insert a policy with a valid org but nonexistent role
-INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, context_name)
-VALUES ('GlobalTech HQ', 'ghost_role', 'read', 'documents', 'permission', 'always');
-
--- Should produce errors (role not found)
-SELECT morbac.t('compile_policy: nonexistent role produces errors',
-    (SELECT error_count > 0 FROM morbac.compile_policy()),
-    TRUE);
-
--- ---------------------------------------------------------------------------
--- Section 9: Derived roles
--- ---------------------------------------------------------------------------
-\echo ''
-\echo '--- 9. Derived roles ---'
+\echo '--- 7. Derived roles ---'
 
 -- Create a derived role: 'senior_employee' — dynamically granted to Dave (only)
 INSERT INTO morbac.roles (id, org_id, name, description)
@@ -497,10 +435,10 @@ WHERE user_id = '30000000-0000-0000-0000-000000000004'
   AND role_id = '20000000-0001-0000-0000-000000000011';
 
 -- ---------------------------------------------------------------------------
--- Section 10: RLS helper functions
+-- Section 8: RLS helper functions
 -- ---------------------------------------------------------------------------
 \echo ''
-\echo '--- 10. RLS helpers: get_user_orgs, current_org_ids, rls_check ---'
+\echo '--- 8. RLS helpers: get_user_orgs, current_org_ids, rls_check ---'
 
 -- Without session variables set, current_user_id / current_org_id / current_org_ids return NULL
 SELECT morbac.t_null('current_user_id() returns NULL without session var',
@@ -593,9 +531,9 @@ SELECT morbac.t('rls_check all-orgs mode: Judy reads documents in Engineering [a
     morbac.rls_check('read', 'documents', '10000000-0000-0000-0000-000000000002'),
     TRUE);
 
--- Judy has no role at GlobalTech -> denied even in all-orgs mode
-SELECT morbac.t('rls_check all-orgs mode: Judy reads documents in GlobalTech [no role, denied]',
-    morbac.rls_check('read', 'documents', '10000000-0000-0000-0000-000000000001'),
+-- Judy has no access to contracts at GlobalTech (no cross-org rule, no view hierarchy) -> denied
+SELECT morbac.t('rls_check all-orgs mode: Judy reads contracts in GlobalTech [no rule, denied]',
+    morbac.rls_check('read', 'contracts', '10000000-0000-0000-0000-000000000001'),
     FALSE);
 
 -- No row org and no session org -> denied
@@ -613,4 +551,4 @@ SELECT morbac.t('rls_check(read, documents) as Karl (no role) [denied]',
 RESET morbac.user_id;
 
 \echo ''
-\echo '=== Utilities, Derived Roles, RLS, and Policy DSL Tests Completed ==='
+\echo '=== Utilities, Derived Roles, and RLS Tests Completed ==='

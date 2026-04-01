@@ -1,4 +1,15 @@
 -- Core OrBAC rule relation: Rule(org, role, activity, view, context, modality)
+--
+-- scope controls which orgs this rule covers relative to org_id:
+--   'self'        — exact org only (default, current behavior)
+--   'subtree'     — org + all descendants
+--   'descendants' — all descendants, excluding self
+--   'children'    — direct children only
+--   'parent'      — direct parent only
+--   'ancestors'   — all ancestors, excluding self
+--   'lineage'     — self + all ancestors
+--   'root'        — topmost ancestor only
+-- Evaluated at query time via org_in_scope() — new orgs are picked up automatically.
 
 CREATE TABLE morbac.rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -8,14 +19,16 @@ CREATE TABLE morbac.rules (
     view TEXT NOT NULL REFERENCES morbac.views(name) ON DELETE CASCADE,
     context_id UUID NOT NULL REFERENCES morbac.contexts(id) ON DELETE CASCADE,
     modality morbac.modality NOT NULL,
+    scope TEXT NOT NULL DEFAULT 'self',
     priority INTEGER,
     valid_from TIMESTAMPTZ,
     valid_until TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     is_active BOOLEAN NOT NULL DEFAULT FALSE,
     metadata JSONB DEFAULT '{}'::jsonb,
-    UNIQUE(org_id, role_id, activity, view, context_id, modality),
-    CHECK (valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from)
+    UNIQUE(org_id, role_id, activity, view, context_id, modality, scope),
+    CHECK (valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from),
+    CHECK (scope IN ('self', 'children', 'descendants', 'subtree', 'parent', 'ancestors', 'lineage', 'root'))
 );
 
 CREATE INDEX idx_rules_org_role ON morbac.rules(org_id, role_id);
@@ -27,6 +40,7 @@ INCLUDE (role_id, context_id)
 WHERE is_active = true;
 
 COMMENT ON TABLE morbac.rules IS 'Core OrBAC rules - Permission, Prohibition, Obligation, Recommendation';
+COMMENT ON COLUMN morbac.rules.scope IS 'Org scope: self (default), subtree, descendants, children, parent, ancestors, lineage, root. Evaluated at query time — new orgs are covered automatically.';
 COMMENT ON COLUMN morbac.rules.modality IS 'Deontic modality: permission, prohibition, obligation, recommendation';
 COMMENT ON COLUMN morbac.rules.priority IS 'Optional rule priority (higher wins). NULL = 0. A permission with higher priority than a prohibition overrides it.';
 

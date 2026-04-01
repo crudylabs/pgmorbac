@@ -23,3 +23,17 @@ CREATE INDEX idx_view_hierarchy_junior ON morbac.view_hierarchy(junior_view);
 COMMENT ON TABLE morbac.view_hierarchy IS 'View hierarchy - senior views inherit from junior views';
 COMMENT ON COLUMN morbac.view_hierarchy.senior_view IS 'Senior view (more specific)';
 COMMENT ON COLUMN morbac.view_hierarchy.junior_view IS 'Junior view (more general)';
+
+-- Default system view names — match system_view.* config keys.
+-- Override config values to rename; the new name must be seeded here too.
+INSERT INTO morbac.views (name, description) VALUES
+    ('orgs',            'Organizations table'),
+    ('roles',           'Roles table'),
+    ('rules',           'Authorization rules table'),
+    ('user_roles',      'User-role assignments table'),
+    ('contexts',        'Rule contexts table'),
+    ('activities',      'Activities table'),
+    ('views',           'Views table'),
+    ('delegations',     'Role delegations table'),
+    ('cross_org_rules', 'Cross-organization rules table')
+ON CONFLICT (name) DO NOTHING;

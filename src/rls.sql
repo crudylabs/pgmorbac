@@ -77,6 +77,7 @@ CREATE OR REPLACE FUNCTION morbac.get_user_orgs(p_user_id UUID)
 RETURNS TABLE(org_id UUID)
 LANGUAGE sql
 STABLE
+SECURITY DEFINER
 AS $$
     SELECT DISTINCT ur.org_id
     FROM morbac.user_roles ur

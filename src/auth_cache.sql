@@ -59,6 +59,7 @@ COMMENT ON FUNCTION morbac.cleanup_auth_cache() IS
 CREATE OR REPLACE FUNCTION morbac.invalidate_cache_on_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 DECLARE
     v_org_id UUID;
@@ -104,6 +105,7 @@ FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_change();
 CREATE OR REPLACE FUNCTION morbac.refresh_on_hierarchy_change()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 BEGIN
     PERFORM morbac.refresh_hierarchy_cache();
@@ -123,3 +125,22 @@ FOR EACH STATEMENT EXECUTE FUNCTION morbac.refresh_on_hierarchy_change();
 CREATE TRIGGER trg_refresh_view_hierarchy
 AFTER INSERT OR UPDATE OR DELETE ON morbac.view_hierarchy
 FOR EACH STATEMENT EXECUTE FUNCTION morbac.refresh_on_hierarchy_change();
+
+-- Invalidate entire cache when org hierarchy changes.
+-- Scoped rules (scope != 'self') depend on the org tree, so any org change
+-- may affect which orgs a rule covers.
+
+CREATE OR REPLACE FUNCTION morbac.invalidate_all_cache()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    DELETE FROM morbac.auth_cache;
+    RETURN NULL;
+END;
+$$;
+
+CREATE TRIGGER trg_invalidate_cache_orgs
+AFTER INSERT OR UPDATE OR DELETE ON morbac.orgs
+FOR EACH STATEMENT EXECUTE FUNCTION morbac.invalidate_all_cache();

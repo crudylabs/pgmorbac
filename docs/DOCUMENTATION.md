@@ -115,9 +115,8 @@ erDiagram
 
 **morbac.contexts**: Contextual conditions as callable predicates. Column `evaluator` (REGPROC) references a function returning BOOLEAN (preferably STABLE). Built-in context `always` returns true.
 
-**morbac.rules**: Core rules linking org, role, activity, view, context, and modality. Indexed on `(org_id, role_id, activity, view, modality)` for fast lookups.
+**morbac.rules**: Core rules linking org, role, activity, view, context, modality, and scope. The `scope` column (default `'self'`) controls which orgs the rule covers relative to `org_id` — evaluated at query time so new child orgs are picked up automatically without re-inserting rules.
 
-**morbac.policy**: Policy DSL using names instead of UUIDs. Insert here, then call `compile_policy()` to generate rules.
 
 ### Advanced Feature Tables
 
@@ -181,25 +180,13 @@ Dynamically computed roles via custom functions.
 Inter-organizational access rules.
 
 **Key columns:**
-- `source_org_id`: Organization where role is held
+- `source_org_id`: Organization where the user must hold the role
 - `target_org_id`: Organization where access is granted
 - `role_id`, `activity`, `view`: Rule specification
 - `context_id`: Contextual condition
 - `modality`: Permission or prohibition
 
-**Behavior:** Allows roles in source organization to access resources in target organization.
-
-**morbac.admin_rules**
-
-Administration rules for delegated management.
-
-**Key columns:**
-- `org_id`, `role_id`: Role receiving admin capabilities
-- `admin_activity`: Admin action (e.g., `create_rule`, `assign_role`, `delete_rule`)
-- `admin_target`: What can be administered (e.g., `rules`, `roles`, `users`)
-- `context_id`, `modality`: Context condition and permission/prohibition
-
-**Behavior:** Enables organization-scoped administrators without database superuser privileges.
+**Behavior:** Allows roles in a source organization to access resources in a target organization.
 
 **morbac.activity_view_bindings**
 
@@ -322,118 +309,78 @@ FROM morbac.contexts WHERE name = 'business_hours';
 - Return FALSE on errors for safe defaults
 - Test thoroughly as contexts affect security
 
-### Policy DSL
+### Inserting rules
 
-The Policy DSL provides a simplified way to declare policies using human-readable names instead of UUIDs, making policy management more intuitive.
-
-**DSL Compilation Flow:**
-
-```mermaid
-flowchart LR
-    A[Policy DSL] --> B[compile_policy]
-    B --> C{Resolve Names}
-    C --> D[Create Activities/Views]
-    C --> E[Lookup Orgs/Roles]
-    D --> F[Generate Rules]
-    E --> F
-    F --> G[morbac.rules]
-```
-
-**Example: Simple Policy Setup**
+Insert directly into `morbac.rules`. Resolve names to UUIDs with a JOIN:
 
 ```sql
--- Use names instead of UUIDs
-INSERT INTO morbac.policy (org_name, role_name, activity, view, modality) VALUES
-    ('Acme Corp', 'employee', 'read', 'documents', 'permission');
-
--- Compile into actual rules
-SELECT * FROM morbac.compile_policy();
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality)
+SELECT o.id, r.id, 'read', 'documents', c.id, 'permission'
+FROM morbac.orgs o
+JOIN morbac.roles r ON r.org_id = o.id AND r.name = 'employee'
+JOIN morbac.contexts c ON c.name = 'always'
+WHERE o.name = 'Acme Corp';
 ```
 
-**Compiler Behavior:**
+For bulk inserts use a VALUES list joined to the lookup tables:
 
-- Creates missing activities/views automatically
-- Resolves names to UUIDs for orgs/roles/contexts
-- Creates entries in `morbac.rules` table
-- Reports errors for missing orgs/roles/contexts
-- Safe to run multiple times (idempotent)
-- Returns detailed results for each policy
-
-**When to Use Policy DSL vs Direct Rules:**
-
-- **Use Policy DSL**: Initial setup, bulk imports, human-readable policy files
-- **Use Direct Rules**: Dynamic rules, application-generated rules, when you already have UUIDs
+```sql
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality)
+SELECT o.id, r.id, v.activity, v.view, c.id, v.modality::morbac.modality
+FROM (VALUES
+    ('Acme Corp', 'employee',   'read',  'documents',     'always', 'permission'),
+    ('Acme Corp', 'employee',   'write', 'documents',     'business_hours', 'permission'),
+    ('Acme Corp', 'contractor', 'read',  'financial_data','always', 'prohibition')
+) AS v(org_name, role_name, activity, view, context_name, modality)
+JOIN morbac.orgs o ON o.name = v.org_name
+JOIN morbac.roles r ON r.org_id = o.id AND r.name = v.role_name
+JOIN morbac.contexts c ON c.name = v.context_name;
+```
 
 ## Advanced Features
 
 ### Organization Rule Scope
 
-Rules in pgmorbac are always scoped to a single organization (`org_id`). To apply a rule across multiple organizations in a hierarchy, use `get_org_scope(org_id, scope)`, which returns a set of `(org_id, depth)` rows for the named scope relative to the given org.
+Every rule has a `scope` column (default `'self'`) that controls which organizations the rule covers relative to its `org_id`. Scope is **evaluated at query time** — adding a new child org to the hierarchy is enough for it to be covered by existing scoped rules. No rule re-creation needed.
 
-| Scope | Returns |
+| Scope | Covers |
 |---|---|
-| `'self'` | The org itself only |
-| `'children'` | Direct children only (depth = 1) |
-| `'descendants'` | All descendants, excluding self |
-| `'subtree'` | Self + all descendants |
-| `'parent'` | Direct parent only |
-| `'ancestors'` | All ancestors, excluding self |
-| `'lineage'` | Self + all ancestors |
-| `'root'` | Topmost ancestor only |
+| `'self'` | The rule's org only (default) |
+| `'children'` | Direct children of the rule's org |
+| `'descendants'` | All descendants, excluding the rule's org itself |
+| `'subtree'` | The rule's org + all descendants |
+| `'parent'` | Direct parent of the rule's org |
+| `'ancestors'` | All ancestors, excluding the rule's org itself |
+| `'lineage'` | The rule's org + all ancestors |
+| `'root'` | Topmost ancestor of the rule's org |
 
-An optional third argument `p_max_depth` limits how many levels are traversed.
+**Example: Analyst reads reports across the whole company**
 
-**Example: Entire subtree (org + all subsidiaries)**
-
-A holding company grants its auditor role read access across all subsidiaries:
+One rule at the root org covers the entire hierarchy, including orgs created in the future:
 
 ```sql
-INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
-SELECT org_id, :role_id, 'read', 'financials', 'permission'
-FROM morbac.get_org_scope(:holding_org_id, 'subtree');
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, scope)
+SELECT o.id, r.id, 'read', 'reports', c.id, 'permission', 'subtree'
+FROM morbac.orgs o
+JOIN morbac.roles r ON r.org_id = o.id AND r.name = 'analyst'
+JOIN morbac.contexts c ON c.name = 'always'
+WHERE o.name = 'Acme Corp';
 ```
 
-**Example: Direct children only**
-
-A regional manager role applies only to first-level divisions, not deeper sub-divisions:
+**Example: Regional manager applies only to direct divisions**
 
 ```sql
-INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
-SELECT org_id, :role_id, 'manage', 'teams', 'permission'
-FROM morbac.get_org_scope(:region_org_id, 'children');
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, scope)
+SELECT o.id, r.id, 'update', 'teams', c.id, 'permission', 'children'
+FROM morbac.orgs o
+JOIN morbac.roles r ON r.org_id = o.id AND r.name = 'regional_manager'
+JOIN morbac.contexts c ON c.name = 'always'
+WHERE o.name = 'EMEA Region';
 ```
 
-**Example: Two levels deep**
+**Cache behavior:** The auth cache is fully invalidated whenever the org tree changes (`INSERT`/`UPDATE`/`DELETE` on `morbac.orgs`), so scoped rules are always consistent.
 
-A rule that covers an org, its direct children, and their children:
-
-```sql
-INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
-SELECT org_id, :role_id, 'read', 'documents', 'permission'
-FROM morbac.get_org_scope(:org_id, 'subtree', 2);
-```
-
-**Example: Root org only**
-
-A compliance rule attached to the top-level org, regardless of where you start:
-
-```sql
-INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
-SELECT org_id, :role_id, 'audit', 'all_data', 'permission'
-FROM morbac.get_org_scope(:any_child_org_id, 'root');
-```
-
-**Example: All ancestors (upward propagation)**
-
-A report created in a child org becomes visible to all parent orgs:
-
-```sql
-INSERT INTO morbac.rules (org_id, role_id, activity, view, modality)
-SELECT org_id, :role_id, 'read', 'reports', 'permission'
-FROM morbac.get_org_scope(:child_org_id, 'ancestors');
-```
-
-For cross-organization access between unrelated orgs, use `cross_org_rules` and `admin_rules`.
+**`get_org_scope(org_id, scope, max_depth?)`** is the underlying helper — it returns `(org_id, depth)` rows and can be used directly when you need to iterate over an org set. An optional `p_max_depth` limits traversal depth.
 
 ### Hierarchies
 
@@ -495,7 +442,7 @@ INSERT INTO morbac.negative_role_assignments (user_id, role_id, org_id, reason)
 VALUES (alice_id, admin_role_id, org_id, 'Under investigation');
 
 -- Alice loses admin access even though role assignment remains
-SELECT morbac.is_allowed(alice_id, org_id, 'manage', 'users'); -- FALSE
+SELECT morbac.is_allowed(alice_id, org_id, 'create', 'user_roles'); -- FALSE
 ```
 
 ### Separation of Duty
@@ -587,11 +534,9 @@ VALUES (project_lead_role_id, 'morbac.eval_project_lead'::regproc);
 
 ### Cross-Organizational Rules
 
-Grant access across organization boundaries.
+Grant access across organization boundaries via `morbac.cross_org_rules`. The user must hold the specified role in `source_org_id` to gain access to `target_org_id` resources.
 
-**Example: Corporate Auditor**
-
-Global auditors can review subsidiary financial data:
+**Example: Auditor from HQ accesses a subsidiary**
 
 ```sql
 INSERT INTO morbac.cross_org_rules (
@@ -601,27 +546,84 @@ INSERT INTO morbac.cross_org_rules (
     (SELECT id FROM morbac.contexts WHERE name = 'always'), 'permission'
 );
 
--- Auditor from Global HQ can now access Subsidiary data
 SELECT morbac.is_allowed(auditor_id, subsidiary_id, 'read', 'financials'); -- TRUE
 ```
 
-### Administration Rules
+**Scope vs. cross-org rules — when to use which:**
 
-Delegate administrative capabilities to specific roles.
+| Need | Use |
+|---|---|
+| Role in org A covers org A's descendants | `rules.scope = 'subtree'` (or other scope) |
+| Role in org A accesses a different org B | `cross_org_rules` with `source_org_id = A` |
 
-**Example: HR Manager**
+### Administration
 
-HR can assign users to roles without being a superuser:
+Admin operations use the same `is_allowed()` engine as everything else — no separate code path.
+
+**System table RLS**
+
+`morbac.*` tables have RLS policies. `is_allowed()` and all its internal callees are `SECURITY DEFINER`, running as the extension owner and bypassing RLS. This breaks the recursion: RLS policies call `is_allowed()`, which queries morbac tables without re-triggering the policies.
+
+The database owner (superuser) bypasses RLS by default — use that privilege only during bootstrap.
+
+**System view names**
+
+The extension seeds built-in activities (`create`, `read`, `update`, `delete`) and system view names (`orgs`, `roles`, `rules`, `user_roles`, `contexts`, `activities`, `views`, `delegations`, `cross_org_rules`) at install time.
+
+These names are config-driven. Override with `morbac.set_config()` to use your own naming conventions — the new name must then exist in `morbac.views` and your rules must reference it:
 
 ```sql
--- Grant HR the ability to assign roles
-INSERT INTO morbac.admin_rules (org_id, role_id, admin_activity, admin_target, context_id, modality)
-VALUES (org_id, hr_manager_role_id, 'assign_role', 'roles',
-        (SELECT id FROM morbac.contexts WHERE name = 'always'), 'permission');
-
--- Check if HR user can assign roles
-SELECT morbac.is_admin_allowed(hr_user_id, org_id, 'assign_role', 'roles'); -- TRUE
+-- Rename 'rules' to 'policies' in your system
+SELECT morbac.set_config('system_view.rules', 'policies');
+INSERT INTO morbac.views (name, description) VALUES ('policies', 'Authorization policies');
+-- Your rules must now grant 'create'/'delete'/... on 'policies', not 'rules'
 ```
+
+**Granting access to system tables**
+
+Insert rules like any other rule:
+
+```sql
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality)
+SELECT o.id, r.id, v.activity, v.view, c.id, 'permission'
+FROM (VALUES
+    ('manager',    'create', 'rules'),
+    ('manager',    'delete', 'rules'),
+    ('hr_manager', 'create', 'user_roles'),
+    ('hr_manager', 'delete', 'user_roles')
+) AS v(role_name, activity, view)
+JOIN morbac.orgs o ON o.name = 'Acme Corp'
+JOIN morbac.roles r ON r.org_id = o.id AND r.name = v.role_name
+JOIN morbac.contexts c ON c.name = 'always';
+```
+
+**Bootstrapping the first organization**
+
+As the database owner (bypasses RLS):
+
+```sql
+INSERT INTO morbac.orgs (name) VALUES ('Acme Corp');
+
+INSERT INTO morbac.roles (org_id, name)
+SELECT id, 'superuser' FROM morbac.orgs WHERE name = 'Acme Corp';
+
+-- Grant full access to all system views
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality)
+SELECT o.id, r.id, a.activity, v.view, c.id, 'permission'
+FROM morbac.orgs o
+JOIN morbac.roles r ON r.org_id = o.id AND r.name = 'superuser'
+JOIN morbac.contexts c ON c.name = 'always'
+CROSS JOIN unnest(ARRAY['create','read','update','delete']) AS a(activity)
+CROSS JOIN unnest(ARRAY['orgs','roles','rules','user_roles','contexts','activities','views','delegations','cross_org_rules']) AS v(view)
+WHERE o.name = 'Acme Corp';
+
+INSERT INTO morbac.user_roles (user_id, role_id, org_id)
+SELECT 'your-user-uuid'::uuid, r.id, o.id
+FROM morbac.orgs o JOIN morbac.roles r ON r.org_id = o.id
+WHERE o.name = 'Acme Corp' AND r.name = 'superuser';
+```
+
+After this, that user can manage the system through the application without database owner access.
 
 ### Temporal Constraints
 
@@ -673,7 +675,6 @@ SELECT morbac.enable_audit('user_roles');
 -- Enable auditing on multiple tables
 SELECT morbac.enable_audit('rules');
 SELECT morbac.enable_audit('delegations');
-SELECT morbac.enable_audit('admin_rules');
 ```
 
 **Disabling audit logging:**
@@ -721,7 +722,7 @@ WHERE table_name = 'rules'
 ```
 
 **Best practices:**
-- Enable auditing on security-critical tables: `user_roles`, `rules`, `delegations`, `admin_rules`, `sod_conflicts`
+- Enable auditing on security-critical tables: `user_roles`, `rules`, `delegations`, `sod_conflicts`
 - Create indexes on frequently queried columns: `CREATE INDEX ON morbac.audit_log(table_name, timestamp DESC)`
 - Implement retention policies to archive old audit logs
 - Use JSONB operators to query `old_data` and `new_data` efficiently
@@ -754,6 +755,8 @@ SELECT morbac.is_allowed(user_uuid, org_uuid, 'read', 'documents');
 SELECT * FROM morbac.get_org_scope(org_uuid, 'subtree', 2);
 ```
 
+**`org_in_scope(target_org_id, rule_org_id, scope)`**: Returns TRUE if `target_org_id` falls within `get_org_scope(rule_org_id, scope)`. Used internally by the authorization engine to evaluate scoped rules. Short-circuits for `'self'` scope.
+
 **`get_inherited_roles(role_id)`**: Returns all junior roles (transitive).
 
 **`get_effective_activities(activity)`**: Returns activity plus all child activities.
@@ -770,17 +773,15 @@ SELECT * FROM morbac.get_org_scope(org_uuid, 'subtree', 2);
 
 ### Administration Functions
 
-**`is_admin_allowed(user_id, org_id, admin_activity, admin_target)`**: Check if user has administrative permission for the given activity/target combination.
+**`assign_role(target_user_id, role_id, org_id)`**: Assigns a role with SoD and cardinality validation. Authorization is enforced by RLS on `morbac.user_roles`.
+
+**`revoke_role(target_user_id, role_id, org_id)`**: Revokes a role with cardinality validation. Authorization is enforced by RLS on `morbac.user_roles`.
 
 **`eval_derived_role(evaluator, user_id, org_id)`**: Evaluate a derived role condition function (REGPROC). Returns BOOLEAN.
 
 ### Context Functions
 
 **`eval_context(context_id)`**: Evaluate a context predicate.
-
-### Policy DSL Functions
-
-**`compile_policy()`**: Compile policy DSL into rules. Returns TABLE with success status and messages. Idempotent.
 
 ### RLS Helper Functions
 
@@ -1022,7 +1023,7 @@ SELECT EXISTS(
 | **Delegation** | Manual implementation | Native temporal delegation |
 | **SoD** | Application logic | Database-enforced constraints |
 | **Cross-tenant** | Not supported | Native cross-org rules |
-| **Audit** | Application layer | Admin rules |
+| **Audit** | Application layer | Native audit log with field-level change tracking |
 
 ---
 

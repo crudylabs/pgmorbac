@@ -36,10 +36,13 @@ INSERT INTO morbac.roles (id, org_id, name, description) VALUES
 INSERT INTO morbac.user_roles (user_id, role_id, org_id) VALUES
     ('30000000-0000-0000-0000-000000000014', '20000000-0002-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002');
 
--- Policies for eng_auditor in Engineering
-INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, context_name)
-VALUES ('Engineering Dept', 'eng_auditor', 'read', 'audit_logs', 'permission', 'always');
-SELECT * FROM morbac.compile_policy();
+-- Rules for eng_auditor in Engineering
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality)
+SELECT o.id, r.id, 'read', 'audit_logs', c.id, 'permission'
+FROM morbac.orgs o
+JOIN morbac.roles r ON r.org_id = o.id AND r.name = 'eng_auditor'
+JOIN morbac.contexts c ON c.name = 'always'
+WHERE o.name = 'Engineering Dept';
 
 -- Verify nina's role was set up correctly
 SELECT morbac.t('Nina has eng_auditor role at Engineering',

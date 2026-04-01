@@ -38,6 +38,7 @@ CREATE OR REPLACE FUNCTION morbac.eval_context(p_context_id UUID)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 STABLE
+SECURITY DEFINER
 AS $$
 DECLARE
     v_evaluator REGPROC;

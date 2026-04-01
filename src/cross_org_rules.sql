@@ -1,4 +1,7 @@
--- Rules that grant access across organization boundaries
+-- Rules that grant access across organization boundaries.
+--
+-- source_org_id: the org where the user must hold role_id.
+-- target_org_id: the org where the resource resides.
 
 CREATE TABLE morbac.cross_org_rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -24,5 +27,5 @@ CREATE INDEX idx_cross_org_rules_target ON morbac.cross_org_rules(target_org_id)
 CREATE INDEX idx_cross_org_rules_temporal ON morbac.cross_org_rules(valid_from, valid_until);
 
 COMMENT ON TABLE morbac.cross_org_rules IS 'Inter-organizational rules for cross-org access';
-COMMENT ON COLUMN morbac.cross_org_rules.source_org_id IS 'Organization where user has role';
-COMMENT ON COLUMN morbac.cross_org_rules.target_org_id IS 'Organization where resource resides';
+COMMENT ON COLUMN morbac.cross_org_rules.source_org_id IS 'Org where user holds the role';
+COMMENT ON COLUMN morbac.cross_org_rules.target_org_id IS 'Org where the resource resides';

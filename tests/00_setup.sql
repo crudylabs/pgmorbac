@@ -173,10 +173,11 @@ INSERT INTO morbac.activities (name, description) VALUES
     ('read',    'Read / view data'),
     ('write',   'Create or modify data'),
     ('delete',  'Delete data'),
+    ('manage',  'Full management access'),
     ('approve', 'Approve requests or documents'),
     ('export',  'Export data to external format'),
-    ('audit',   'Audit trail review'),
-    ('manage',  'Full administrative control');
+    ('audit',   'Audit trail review')
+ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO morbac.views (name, description) VALUES
     ('documents',     'General company documents'),
@@ -185,7 +186,8 @@ INSERT INTO morbac.views (name, description) VALUES
     ('hr_data',       'Human resources data'),
     ('contracts',     'Legal contracts'),
     ('audit_logs',    'System audit logs'),
-    ('public_data',   'Publicly accessible data');
+    ('public_data',   'Publicly accessible data')
+ON CONFLICT (name) DO NOTHING;
 
 -- ---------------------------------------------------------------------------
 -- CONTEXTS
@@ -219,77 +221,49 @@ INSERT INTO morbac.contexts (name, description, evaluator) VALUES
 SELECT name, description FROM morbac.contexts ORDER BY name;
 
 -- ---------------------------------------------------------------------------
--- POLICIES (via Policy DSL — resolved by compile_policy)
+-- RULES
 -- ---------------------------------------------------------------------------
 \echo ''
-\echo '=== Setup: Policies ==='
+\echo '=== Setup: Rules ==='
 
--- GlobalTech HQ policies
-INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, context_name) VALUES
-    -- Intern: read public data only
-    ('GlobalTech HQ', 'intern',             'read',   'public_data',    'permission',   'always'),
-
-    -- Employee: read documents and reports; write documents only during business hours
-    ('GlobalTech HQ', 'employee',           'read',   'documents',      'permission',   'always'),
-    ('GlobalTech HQ', 'employee',           'write',  'documents',      'permission',   'business_hours'),
-    ('GlobalTech HQ', 'employee',           'read',   'reports',        'permission',   'always'),
-    ('GlobalTech HQ', 'employee',           'read',   'public_data',    'permission',   'always'),
-
-    -- Obligation: employees must review reports weekly
-    ('GlobalTech HQ', 'employee',           'read',   'reports',        'obligation',   'always'),
-
-    -- Manager: approve and delete documents; read financial data
-    ('GlobalTech HQ', 'manager',            'approve','documents',      'permission',   'always'),
-    ('GlobalTech HQ', 'manager',            'delete', 'documents',      'permission',   'always'),
-    ('GlobalTech HQ', 'manager',            'read',   'financial_data', 'permission',   'always'),
-
-    -- HR Manager: full access to HR data
-    ('GlobalTech HQ', 'hr_manager',         'read',   'hr_data',        'permission',   'always'),
-    ('GlobalTech HQ', 'hr_manager',         'write',  'hr_data',        'permission',   'always'),
-    ('GlobalTech HQ', 'hr_manager',         'delete', 'hr_data',        'permission',   'always'),
-
-    -- Auditor: read audit logs, financial data, and documents
-    ('GlobalTech HQ', 'auditor',            'read',   'audit_logs',     'permission',   'always'),
-    ('GlobalTech HQ', 'auditor',            'read',   'financial_data', 'permission',   'always'),
-    ('GlobalTech HQ', 'auditor',            'read',   'documents',      'permission',   'always'),
-
-    -- Accountant: read and write financial data
-    ('GlobalTech HQ', 'accountant',         'read',   'financial_data', 'permission',   'always'),
-    ('GlobalTech HQ', 'accountant',         'write',  'financial_data', 'permission',   'always'),
-
-    -- Contractor: read documents; PROHIBITED from financial and HR data
-    ('GlobalTech HQ', 'contractor',         'read',   'documents',      'permission',   'always'),
-    ('GlobalTech HQ', 'contractor',         'read',   'financial_data', 'prohibition',  'always'),
-    ('GlobalTech HQ', 'contractor',         'read',   'hr_data',        'prohibition',  'always'),
-
-    -- Compliance Officer: read audit logs and financial data
-    ('GlobalTech HQ', 'compliance_officer', 'read',   'audit_logs',     'permission',   'always'),
-    ('GlobalTech HQ', 'compliance_officer', 'read',   'financial_data', 'permission',   'always'),
-
-    -- Recommendation: staff should review reports end of quarter
-    -- Note: voided by the obligation above (conflict resolution: obligation > recommendation)
-    ('GlobalTech HQ', 'employee',           'read',   'reports',        'recommendation','end_of_quarter'),
-
-    -- Recommendation: staff should stay informed on public data (no conflicting obligation)
-    ('GlobalTech HQ', 'employee',           'read',   'public_data',    'recommendation','always');
-
--- Engineering Dept policies
-INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, context_name) VALUES
-    ('Engineering Dept', 'engineer',  'read',    'documents', 'permission', 'always'),
-    ('Engineering Dept', 'engineer',  'write',   'documents', 'permission', 'always'),
-    ('Engineering Dept', 'tech_lead', 'approve', 'documents', 'permission', 'always');
-
--- Sales Dept policies
-INSERT INTO morbac.policy (org_name, role_name, activity, view, modality, context_name) VALUES
-    ('Sales Dept', 'sales_rep',     'read',    'documents', 'permission', 'always'),
-    ('Sales Dept', 'sales_rep',     'write',   'contracts', 'permission', 'always'),
-    ('Sales Dept', 'sales_manager', 'read',    'reports',   'permission', 'always'),
-    ('Sales Dept', 'sales_manager', 'approve', 'contracts', 'permission', 'always');
-
--- Compile all policies into rules
-\echo ''
-\echo '=== Setup: Compiling Policies ==='
-SELECT * FROM morbac.compile_policy();
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality)
+SELECT o.id, r.id, v.activity, v.view, c.id, v.modality::morbac.modality
+FROM (VALUES
+    ('GlobalTech HQ', 'intern',             'read',   'public_data',    'always',        'permission'),
+    ('GlobalTech HQ', 'employee',           'read',   'documents',      'always',        'permission'),
+    ('GlobalTech HQ', 'employee',           'write',  'documents',      'business_hours','permission'),
+    ('GlobalTech HQ', 'employee',           'read',   'reports',        'always',        'permission'),
+    ('GlobalTech HQ', 'employee',           'read',   'public_data',    'always',        'permission'),
+    ('GlobalTech HQ', 'employee',           'read',   'reports',        'always',        'obligation'),
+    ('GlobalTech HQ', 'employee',           'read',   'reports',        'end_of_quarter','recommendation'),
+    ('GlobalTech HQ', 'employee',           'read',   'public_data',    'always',        'recommendation'),
+    ('GlobalTech HQ', 'manager',            'approve','documents',      'always',        'permission'),
+    ('GlobalTech HQ', 'manager',            'delete', 'documents',      'always',        'permission'),
+    ('GlobalTech HQ', 'manager',            'read',   'financial_data', 'always',        'permission'),
+    ('GlobalTech HQ', 'hr_manager',         'read',   'hr_data',        'always',        'permission'),
+    ('GlobalTech HQ', 'hr_manager',         'write',  'hr_data',        'always',        'permission'),
+    ('GlobalTech HQ', 'hr_manager',         'delete', 'hr_data',        'always',        'permission'),
+    ('GlobalTech HQ', 'auditor',            'read',   'audit_logs',     'always',        'permission'),
+    ('GlobalTech HQ', 'auditor',            'read',   'financial_data', 'always',        'permission'),
+    ('GlobalTech HQ', 'auditor',            'read',   'documents',      'always',        'permission'),
+    ('GlobalTech HQ', 'accountant',         'read',   'financial_data', 'always',        'permission'),
+    ('GlobalTech HQ', 'accountant',         'write',  'financial_data', 'always',        'permission'),
+    ('GlobalTech HQ', 'contractor',         'read',   'documents',      'always',        'permission'),
+    ('GlobalTech HQ', 'contractor',         'read',   'financial_data', 'always',        'prohibition'),
+    ('GlobalTech HQ', 'contractor',         'read',   'hr_data',        'always',        'prohibition'),
+    ('GlobalTech HQ', 'compliance_officer', 'read',   'audit_logs',     'always',        'permission'),
+    ('GlobalTech HQ', 'compliance_officer', 'read',   'financial_data', 'always',        'permission'),
+    ('Engineering Dept', 'engineer',        'read',   'documents',      'always',        'permission'),
+    ('Engineering Dept', 'engineer',        'write',  'documents',      'always',        'permission'),
+    ('Engineering Dept', 'tech_lead',       'approve','documents',      'always',        'permission'),
+    ('Sales Dept',       'sales_rep',       'read',   'documents',      'always',        'permission'),
+    ('Sales Dept',       'sales_rep',       'write',  'contracts',      'always',        'permission'),
+    ('Sales Dept',       'sales_manager',   'read',   'reports',        'always',        'permission'),
+    ('Sales Dept',       'sales_manager',   'approve','contracts',      'always',        'permission')
+) AS v(org_name, role_name, activity, view, context_name, modality)
+JOIN morbac.orgs o ON o.name = v.org_name
+JOIN morbac.roles r ON r.org_id = o.id AND r.name = v.role_name
+JOIN morbac.contexts c ON c.name = v.context_name;
 
 -- ---------------------------------------------------------------------------
 -- Test infrastructure
@@ -343,6 +317,6 @@ $$;
 \echo '    Organizations : GlobalTech HQ, Engineering Dept, Sales Dept'
 \echo '    Roles         : 14 across 3 orgs'
 \echo '    Users         : Alice, Bob, Carol, Dave, Eve, Frank, Grace, Heidi, Ivan, Judy, Karl, Leo'
-\echo '    Activities    : read, write, delete, approve, export, audit, manage'
+\echo '    Activities    : read, write, delete, manage, approve, export, audit (+ built-ins: create, update)'
 \echo '    Views         : documents, reports, financial_data, hr_data, contracts, audit_logs, public_data'
 \echo '    Contexts      : always (true), business_hours (true), after_hours (false), end_of_quarter (true)'

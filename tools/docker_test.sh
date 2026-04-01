@@ -5,7 +5,7 @@
 
 set -e # Exit immediately if a command exits with a non-zero status
 
-CONTAINER="${1:-postgres}"
+CONTAINER="${1:-pgmorbac_postgres_test}"
 DB="${2:-morbac_test}"
 PG_USER="${3:-postgres}"
 
