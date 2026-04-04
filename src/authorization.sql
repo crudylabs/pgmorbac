@@ -32,64 +32,92 @@ DECLARE
     v_rule                     RECORD;
     v_max_prohibition_priority INTEGER := NULL;
     v_max_permission_priority  INTEGER := NULL;
+    v_is_system_principal      BOOLEAN := FALSE;
 BEGIN
-    -- STEP 1: Local prohibitions — find the highest-priority applicable one
-    FOR v_rule IN
-        SELECT r.context_id, COALESCE(r.priority, 0) AS prio
-        FROM morbac.rules r
-        WHERE morbac.org_in_scope(p_org_id, r.org_id, r.scope)
-          AND r.modality = 'prohibition'
-          AND r.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
-          AND r.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
-          AND r.role_id  IN (SELECT role_id  FROM morbac.get_comprehensive_roles(p_user_id, r.org_id))
-          AND morbac.is_rule_valid(r.valid_from, r.valid_until)
-        ORDER BY COALESCE(r.priority, 0) DESC
-    LOOP
-        IF morbac.eval_context(v_rule.context_id) THEN
-            v_max_prohibition_priority := v_rule.prio;
-            EXIT;
-        END IF;
-    END LOOP;
+    SELECT TRUE INTO v_is_system_principal
+    FROM morbac.system_principals WHERE user_id = p_user_id;
 
-    -- STEP 2: Cross-org prohibitions — update max if a higher priority is found
-    FOR v_rule IN
-        SELECT cr.context_id, COALESCE(cr.priority, 0) AS prio
-        FROM morbac.cross_org_rules cr
-        WHERE cr.target_org_id = p_org_id
-          AND cr.modality = 'prohibition'
-          AND cr.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
-          AND cr.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
-          AND cr.role_id IN (SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, cr.source_org_id))
-          AND morbac.is_rule_valid(cr.valid_from, cr.valid_until)
-        ORDER BY COALESCE(cr.priority, 0) DESC
-    LOOP
-        IF morbac.eval_context(v_rule.context_id) THEN
-            IF v_max_prohibition_priority IS NULL OR v_rule.prio > v_max_prohibition_priority THEN
-                v_max_prohibition_priority := v_rule.prio;
-            END IF;
-            EXIT;
-        END IF;
-    END LOOP;
+    -- STEPS 1-3.5: Prohibitions — skipped entirely for system principals
+    IF NOT v_is_system_principal THEN
 
-    -- STEP 3: User-level prohibitions — direct user rules, update max if higher
-    FOR v_rule IN
-        SELECT ur.context_id, COALESCE(ur.priority, 0) AS prio
-        FROM morbac.user_rules ur
-        WHERE ur.user_id = p_user_id
-          AND ur.org_id = p_org_id
-          AND ur.modality = 'prohibition'
-          AND ur.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
-          AND ur.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
-          AND morbac.is_rule_valid(ur.valid_from, ur.valid_until)
-        ORDER BY COALESCE(ur.priority, 0) DESC
-    LOOP
-        IF morbac.eval_context(v_rule.context_id) THEN
-            IF v_max_prohibition_priority IS NULL OR v_rule.prio > v_max_prohibition_priority THEN
+        -- STEP 1: Local prohibitions — find the highest-priority applicable one
+        FOR v_rule IN
+            SELECT r.context_id, COALESCE(r.priority, 0) AS prio
+            FROM morbac.rules r
+            WHERE morbac.org_in_scope(p_org_id, r.org_id, r.scope)
+              AND r.modality = 'prohibition'
+              AND r.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
+              AND r.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
+              AND r.role_id  IN (SELECT role_id  FROM morbac.get_comprehensive_roles(p_user_id, r.org_id))
+              AND morbac.is_rule_valid(r.valid_from, r.valid_until)
+            ORDER BY COALESCE(r.priority, 0) DESC
+        LOOP
+            IF morbac.eval_context(v_rule.context_id) THEN
                 v_max_prohibition_priority := v_rule.prio;
+                EXIT;
             END IF;
-            EXIT;
-        END IF;
-    END LOOP;
+        END LOOP;
+
+        -- STEP 2: Cross-org prohibitions — update max if a higher priority is found
+        FOR v_rule IN
+            SELECT cr.context_id, COALESCE(cr.priority, 0) AS prio
+            FROM morbac.cross_org_rules cr
+            WHERE cr.target_org_id = p_org_id
+              AND cr.modality = 'prohibition'
+              AND cr.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
+              AND cr.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
+              AND cr.role_id IN (SELECT role_id FROM morbac.get_comprehensive_roles(p_user_id, cr.source_org_id))
+              AND morbac.is_rule_valid(cr.valid_from, cr.valid_until)
+            ORDER BY COALESCE(cr.priority, 0) DESC
+        LOOP
+            IF morbac.eval_context(v_rule.context_id) THEN
+                IF v_max_prohibition_priority IS NULL OR v_rule.prio > v_max_prohibition_priority THEN
+                    v_max_prohibition_priority := v_rule.prio;
+                END IF;
+                EXIT;
+            END IF;
+        END LOOP;
+
+        -- STEP 3: User-level prohibitions — direct user rules, update max if higher
+        FOR v_rule IN
+            SELECT ur.context_id, COALESCE(ur.priority, 0) AS prio
+            FROM morbac.user_rules ur
+            WHERE ur.user_id = p_user_id
+              AND ur.org_id = p_org_id
+              AND ur.modality = 'prohibition'
+              AND ur.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
+              AND ur.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
+              AND morbac.is_rule_valid(ur.valid_from, ur.valid_until)
+            ORDER BY COALESCE(ur.priority, 0) DESC
+        LOOP
+            IF morbac.eval_context(v_rule.context_id) THEN
+                IF v_max_prohibition_priority IS NULL OR v_rule.prio > v_max_prohibition_priority THEN
+                    v_max_prohibition_priority := v_rule.prio;
+                END IF;
+                EXIT;
+            END IF;
+        END LOOP;
+
+        -- STEP 3.5: Global prohibitions
+        FOR v_rule IN
+            SELECT gr.context_id, COALESCE(gr.priority, 0) AS prio
+            FROM morbac.global_rules gr
+            WHERE (gr.user_id IS NULL OR gr.user_id = p_user_id)
+              AND gr.modality = 'prohibition'
+              AND (gr.activity IS NULL OR gr.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity)))
+              AND (gr.view     IS NULL OR gr.view     IN (SELECT view     FROM morbac.get_effective_views(p_view)))
+              AND morbac.is_rule_valid(gr.valid_from, gr.valid_until)
+            ORDER BY COALESCE(gr.priority, 0) DESC
+        LOOP
+            IF morbac.eval_context(v_rule.context_id) THEN
+                IF v_max_prohibition_priority IS NULL OR v_rule.prio > v_max_prohibition_priority THEN
+                    v_max_prohibition_priority := v_rule.prio;
+                END IF;
+                EXIT;
+            END IF;
+        END LOOP;
+
+    END IF; -- v_is_system_principal
 
     -- STEP 4: Local permissions — find the highest-priority applicable one
     FOR v_rule IN
@@ -140,6 +168,25 @@ BEGIN
           AND ur.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
           AND morbac.is_rule_valid(ur.valid_from, ur.valid_until)
         ORDER BY COALESCE(ur.priority, 0) DESC
+    LOOP
+        IF morbac.eval_context(v_rule.context_id) THEN
+            IF v_max_permission_priority IS NULL OR v_rule.prio > v_max_permission_priority THEN
+                v_max_permission_priority := v_rule.prio;
+            END IF;
+            EXIT;
+        END IF;
+    END LOOP;
+
+    -- STEP 6.5: Global permissions
+    FOR v_rule IN
+        SELECT gr.context_id, COALESCE(gr.priority, 0) AS prio
+        FROM morbac.global_rules gr
+        WHERE (gr.user_id IS NULL OR gr.user_id = p_user_id)
+          AND gr.modality = 'permission'
+          AND (gr.activity IS NULL OR gr.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity)))
+          AND (gr.view     IS NULL OR gr.view     IN (SELECT view     FROM morbac.get_effective_views(p_view)))
+          AND morbac.is_rule_valid(gr.valid_from, gr.valid_until)
+        ORDER BY COALESCE(gr.priority, 0) DESC
     LOOP
         IF morbac.eval_context(v_rule.context_id) THEN
             IF v_max_permission_priority IS NULL OR v_rule.prio > v_max_permission_priority THEN

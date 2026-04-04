@@ -125,6 +125,41 @@ CREATE TRIGGER trg_invalidate_cache_user_rules
 AFTER INSERT OR UPDATE OR DELETE ON morbac.user_rules
 FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_user_rule_change();
 
+-- Global rules have no org scope — any change invalidates the entire cache
+CREATE OR REPLACE FUNCTION morbac.invalidate_cache_on_global_rule_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    DELETE FROM morbac.auth_cache;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE TRIGGER trg_invalidate_cache_global_rules
+AFTER INSERT OR UPDATE OR DELETE ON morbac.global_rules
+FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_global_rule_change();
+
+-- system_principals changes affect prohibition bypass — invalidate per user
+CREATE OR REPLACE FUNCTION morbac.invalidate_cache_on_system_principal_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_user_id UUID;
+BEGIN
+    v_user_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.user_id ELSE NEW.user_id END;
+    DELETE FROM morbac.auth_cache WHERE user_id = v_user_id;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE TRIGGER trg_invalidate_cache_system_principals
+AFTER INSERT OR UPDATE OR DELETE ON morbac.system_principals
+FOR EACH ROW EXECUTE FUNCTION morbac.invalidate_cache_on_system_principal_change();
+
 -- Refresh materialized hierarchy views when hierarchies change
 
 CREATE OR REPLACE FUNCTION morbac.refresh_on_hierarchy_change()

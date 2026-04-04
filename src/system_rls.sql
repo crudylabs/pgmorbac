@@ -180,6 +180,32 @@ CREATE POLICY user_rules_delete ON morbac.user_rules FOR DELETE
     USING (morbac.is_allowed(morbac.current_user_id(), org_id, 'delete',
         morbac.get_config('system_view.user_rules')));
 
+-- morbac.system_principals (no org_id — SELECT only; INSERT/UPDATE/DELETE reserved for DB owner)
+ALTER TABLE morbac.system_principals ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY system_principals_select ON morbac.system_principals FOR SELECT
+    USING (morbac.is_allowed(morbac.current_user_id(), morbac.current_org_id(), 'read',
+        morbac.get_config('system_view.system_principals')));
+
+-- morbac.global_rules (no org_id — use current session org for write checks)
+ALTER TABLE morbac.global_rules ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY global_rules_select ON morbac.global_rules FOR SELECT
+    USING (morbac.is_allowed(morbac.current_user_id(), morbac.current_org_id(), 'read',
+        morbac.get_config('system_view.global_rules')));
+
+CREATE POLICY global_rules_insert ON morbac.global_rules FOR INSERT
+    WITH CHECK (morbac.is_allowed(morbac.current_user_id(), morbac.current_org_id(), 'create',
+        morbac.get_config('system_view.global_rules')));
+
+CREATE POLICY global_rules_update ON morbac.global_rules FOR UPDATE
+    USING (morbac.is_allowed(morbac.current_user_id(), morbac.current_org_id(), 'update',
+        morbac.get_config('system_view.global_rules')));
+
+CREATE POLICY global_rules_delete ON morbac.global_rules FOR DELETE
+    USING (morbac.is_allowed(morbac.current_user_id(), morbac.current_org_id(), 'delete',
+        morbac.get_config('system_view.global_rules')));
+
 -- morbac.cross_org_rules
 ALTER TABLE morbac.cross_org_rules ENABLE ROW LEVEL SECURITY;
 

@@ -30,6 +30,8 @@ BUILD_FILES=(
     "rules.sql"
     "cross_org_rules.sql"
     "user_rules.sql"
+    "global_rules.sql"
+    "system_principals.sql"
     "activity_view_bindings.sql"
     "obligations.sql"
     "audit.sql"

@@ -39,10 +39,13 @@ flowchart TD
     D --> G
     E --> G
     F --> G
-    G --> H[Find Highest-Priority Prohibition]
-    G --> I[Find Highest-Priority Permission]
-    H --> J{Compare Priorities}
-    I --> J
+    G --> SP{System Principal?}
+    SP -->|Yes| I[Find Highest-Priority Permission]
+    SP -->|No| H[Find Highest-Priority Prohibition]
+    H --> H2[+ Global Prohibitions step 3.5]
+    I --> I2[+ Global Permissions step 6.5]
+    H2 --> J{Compare Priorities}
+    I2 --> J
     J -->|Permission priority > Prohibition priority| K[ALLOW]
     J -->|Prohibition exists, no higher-priority permission| L[DENY]
     J -->|No prohibition, permission found| K
@@ -88,6 +91,11 @@ erDiagram
     views ||--o{ activity_view_bindings : "allowed_for"
 
     contexts ||--o{ rules : "condition"
+    contexts ||--o{ global_rules : "condition"
+
+    activities ||--o{ global_rules : "action"
+    views ||--o{ global_rules : "target"
+    system_principals ||--o{ global_rules : "ruleset"
 
     roles ||--o{ delegations : "delegated"
     roles ||--o{ negative_role_assignments : "prohibited"
@@ -187,6 +195,30 @@ Inter-organizational access rules.
 - `modality`: Permission or prohibition
 
 **Behavior:** Allows roles in a source organization to access resources in a target organization.
+
+**morbac.system_principals**
+
+Registry of backend service accounts. Registered user UUIDs are protected at the trigger level — no role assignment, rule, delegation, or prohibition can target them. Their permission rules in `global_rules` are equally immutable.
+
+**Key columns:**
+- `user_id`: UUID of the service account
+- `description`: Human-readable label
+
+**Behavior:** System principals bypass all prohibition evaluation. Only the DB owner can insert or remove entries (no RLS write policies).
+
+**morbac.global_rules**
+
+System-wide rules with no org or role binding.
+
+**Key columns:**
+- `user_id`: NULL = all users; non-NULL = specific user
+- `activity`: NULL = any activity; non-NULL = specific activity (hierarchy applies)
+- `view`: NULL = any view; non-NULL = specific view (hierarchy applies)
+- `context_id`: Contextual condition
+- `modality`: Permission or prohibition
+- `priority`: Optional; same resolution semantics as `morbac.rules`
+
+**Behavior:** Evaluated at steps 3.5 (prohibitions) and 6.5 (permissions) in `is_allowed_nocache()`. NULL on `activity` or `view` matches any value — no hierarchy setup required for broad rules.
 
 **morbac.activity_view_bindings**
 
@@ -556,6 +588,93 @@ SELECT morbac.is_allowed(auditor_id, subsidiary_id, 'read', 'financials'); -- TR
 | Role in org A covers org A's descendants | `rules.scope = 'subtree'` (or other scope) |
 | Role in org A accesses a different org B | `cross_org_rules` with `source_org_id = A` |
 
+### Global Rules
+
+Global rules apply system-wide — no org or role required. Use them to define blanket access policies that cut across the entire org hierarchy.
+
+**Table:** `morbac.global_rules`
+
+| Column | Purpose |
+|---|---|
+| `user_id` | NULL = all users; UUID = specific user |
+| `activity` | NULL = any activity; specific name = that activity (hierarchy applies) |
+| `view` | NULL = any view; specific name = that view (hierarchy applies) |
+| `modality` | `permission` or `prohibition` |
+| `priority` | Optional; same semantics as `morbac.rules` |
+
+**Evaluation order:** Global prohibitions are evaluated at step 3.5 (after local, cross-org, and user-level prohibitions). Global permissions at step 6.5 (after all other permission sources). Both contribute to the same priority accumulators used in step 7 resolution.
+
+**Use case: system account that reads all resources**
+
+```sql
+INSERT INTO morbac.global_rules (user_id, activity, view, context_id, modality)
+VALUES (
+    :system_account_uuid,
+    'read', NULL,
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'permission'
+);
+```
+
+`view = NULL` matches every view. Use `activity = NULL` too if the account needs all actions.
+
+**Use case: protect service accounts from modification by anyone**
+
+```sql
+INSERT INTO morbac.views (name) VALUES ('service_accounts');
+
+INSERT INTO morbac.global_rules (user_id, activity, view, context_id, modality, priority)
+SELECT NULL, a.act, 'service_accounts',
+       (SELECT id FROM morbac.contexts WHERE name = 'always'),
+       'prohibition', 100
+FROM (VALUES ('delete'), ('update')) AS a(act);
+```
+
+Priority 100 ensures this prohibition overrides any role-based permission. To exempt a specific user, add a subject-specific permission with higher priority via `morbac.user_rules`.
+
+### System Principals
+
+Backend service accounts that must be fully immutable at the database level — no policy, no admin, no superadmin can touch them once registered.
+
+**Table:** `morbac.system_principals`
+
+| Column | Purpose |
+|---|---|
+| `user_id` | UUID of the service account (external, from your auth system) |
+| `description` | Human-readable label |
+
+**What is protected (trigger level — fires for all users including superusers):**
+
+| Table | Blocked operations |
+|---|---|
+| `user_roles` | INSERT, UPDATE, DELETE |
+| `user_rules` | INSERT, UPDATE, DELETE |
+| `negative_role_assignments` | INSERT, UPDATE, DELETE |
+| `delegations` | INSERT, UPDATE involving the principal |
+| `global_rules` | All operations where `user_id` matches a system principal |
+
+**Authorization behavior:** Prohibition evaluation (steps 1–3.5) is skipped entirely for system principals. Even a blanket `user_id=NULL` global prohibition does not affect them. Only their permission rules matter.
+
+**Ruleset:** Define permissions for system principals via `global_rules` at deploy time. Those rows are immutable once inserted — no one can modify or delete them. Use `activity=NULL, view=NULL` to grant full access, or restrict to specific activities/views:
+
+```sql
+-- Register the service account (DB owner only)
+INSERT INTO morbac.system_principals (user_id, description)
+VALUES (:service_uuid, 'Backend API worker');
+
+-- Grant full access (immutable after insert)
+INSERT INTO morbac.global_rules (user_id, activity, view, context_id, modality)
+VALUES (:service_uuid, NULL, NULL,
+    (SELECT id FROM morbac.contexts WHERE name = 'always'), 'permission');
+
+-- Or restrict to specific operations
+INSERT INTO morbac.global_rules (user_id, activity, view, context_id, modality)
+VALUES (:service_uuid, 'read', NULL,
+    (SELECT id FROM morbac.contexts WHERE name = 'always'), 'permission');
+```
+
+**Access control on the registry itself:** `morbac.system_principals` has a SELECT-only RLS policy — a user needs `is_allowed(..., 'read', 'system_principals')` to list them. INSERT/UPDATE/DELETE have no RLS policy, so they are blocked for all non-superusers automatically. Only the database owner can register or remove system principals.
+
 ### Administration
 
 Admin operations use the same `is_allowed()` engine as everything else — no separate code path.
@@ -568,7 +687,7 @@ The database owner (superuser) bypasses RLS by default — use that privilege on
 
 **System view names**
 
-The extension seeds built-in activities (`create`, `read`, `update`, `delete`) and system view names (`orgs`, `roles`, `rules`, `user_roles`, `contexts`, `activities`, `views`, `delegations`, `cross_org_rules`) at install time.
+The extension seeds built-in activities (`create`, `read`, `update`, `delete`) and system view names (`orgs`, `roles`, `rules`, `user_roles`, `contexts`, `activities`, `views`, `delegations`, `cross_org_rules`, `user_rules`, `global_rules`, `system_principals`) at install time.
 
 These names are config-driven. Override with `morbac.set_config()` to use your own naming conventions — the new name must then exist in `morbac.views` and your rules must reference it:
 
@@ -732,7 +851,7 @@ WHERE table_name = 'rules'
 
 ### Authorization Functions
 
-**`is_allowed(user_id, org_id, activity, view)`**: Main authorization decision. Returns BOOLEAN. Checks prohibitions first, then permissions, defaults to deny.
+**`is_allowed(user_id, org_id, activity, view)`**: Main authorization decision. Returns BOOLEAN. Evaluates local rules, cross-org rules, user rules, and global rules; defaults to deny.
 
 ```sql
 SELECT morbac.is_allowed(user_uuid, org_uuid, 'read', 'documents');

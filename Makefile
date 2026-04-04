@@ -43,8 +43,8 @@ install: build
 	@cp $(OUTPUT_DEV_FILENAME) $(OUTPUT_RELEASE_FILENAME)
 	@./tools/install.sh $(PROJECT_FILENAME) $(PROJECT_VERSION)
 
-.PHONY: check
-check: install
+.PHONY: test
+test: install
 	@echo "Running tests..."
 	@dropdb morbac_test 2>/dev/null || true
 	@createdb morbac_test
@@ -89,8 +89,8 @@ docker-uninstall:
 	@./tools/docker_uninstall.sh $(DOCKER_CONTAINER) $(PROJECT_FILENAME)
 
 # Build and run tests in Docker container
-.PHONY: docker-check
-docker-check: docker-install
+.PHONY: docker-test
+docker-test: docker-install
 	@echo "Running tests in Docker..."
 	@./tools/docker_test.sh $(DOCKER_CONTAINER) morbac_test postgres
 
