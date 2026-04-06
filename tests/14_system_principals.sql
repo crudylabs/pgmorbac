@@ -14,6 +14,8 @@
 --   8. Cannot create delegations involving a system principal
 --   9. Cannot add a targeted global_rules prohibition for a system principal
 --  10. Cannot modify or delete existing global_rules for a system principal
+--  11. Prohibitions apply to regular users (system principal bypass is not global)
+--  12. is_allowed() works correctly in read-only transactions
 --
 -- Prerequisites: 00_setup.sql -> 13_global_rules.sql
 -- =============================================================================
@@ -288,6 +290,55 @@ EXCEPTION
         END IF;
 END;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Section 11: Prohibitions apply to regular users, not just system principals
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '--- 11. Prohibitions apply to regular users ---'
+
+INSERT INTO morbac.global_rules (user_id, activity, view, context_id, modality, priority)
+VALUES (
+    NULL,
+    'delete', 'documents',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'prohibition', 100
+);
+
+SELECT morbac.t('Dave deletes GlobalTech documents [blanket prohibition must apply to non-system users]',
+    morbac.is_allowed_nocache(
+        '30000000-0000-0000-0000-000000000004'::uuid,
+        '10000000-0000-0000-0000-000000000001'::uuid,
+        'delete', 'documents'
+    ), FALSE);
+
+SELECT morbac.t('System principal deletes GlobalTech documents [prohibition still bypassed]',
+    morbac.is_allowed_nocache(
+        '40000000-0000-0000-0000-000000000001'::uuid,
+        '10000000-0000-0000-0000-000000000001'::uuid,
+        'delete', 'documents'
+    ), TRUE);
+
+DELETE FROM morbac.global_rules
+WHERE user_id IS NULL AND activity = 'delete' AND view = 'documents';
+
+-- ---------------------------------------------------------------------------
+-- Section 12: is_allowed() works in read-only transactions
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '--- 12. is_allowed() in read-only transactions ---'
+
+BEGIN;
+SET TRANSACTION READ ONLY;
+
+SELECT morbac.t('is_allowed() returns correct result in read-only transaction',
+    morbac.is_allowed(
+        '30000000-0000-0000-0000-000000000004'::uuid,
+        '10000000-0000-0000-0000-000000000001'::uuid,
+        'read', 'public_data'
+    ), TRUE);
+
+ROLLBACK;
 
 \echo ''
 \echo '=== System Principals Tests Completed ==='

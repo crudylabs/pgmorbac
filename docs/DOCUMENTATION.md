@@ -851,7 +851,7 @@ WHERE table_name = 'rules'
 
 ### Authorization Functions
 
-**`is_allowed(user_id, org_id, activity, view)`**: Main authorization decision. Returns BOOLEAN. Evaluates local rules, cross-org rules, user rules, and global rules; defaults to deny.
+**`is_allowed(user_id, org_id, activity, view)`**: Main authorization decision. Returns BOOLEAN. Evaluates local rules, cross-org rules, user rules, and global rules; defaults to deny. Cache writes are silently skipped in read-only transactions so this function is safe to call from both read-write and read-only contexts (e.g. PostgREST GET requests).
 
 ```sql
 SELECT morbac.is_allowed(user_uuid, org_uuid, 'read', 'documents');

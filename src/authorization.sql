@@ -32,10 +32,11 @@ DECLARE
     v_rule                     RECORD;
     v_max_prohibition_priority INTEGER := NULL;
     v_max_permission_priority  INTEGER := NULL;
-    v_is_system_principal      BOOLEAN := FALSE;
+    v_is_system_principal      BOOLEAN;
 BEGIN
-    SELECT TRUE INTO v_is_system_principal
-    FROM morbac.system_principals WHERE user_id = p_user_id;
+    v_is_system_principal := EXISTS (
+        SELECT 1 FROM morbac.system_principals WHERE user_id = p_user_id
+    );
 
     -- STEPS 1-3.5: Prohibitions — skipped entirely for system principals
     IF NOT v_is_system_principal THEN
@@ -244,19 +245,23 @@ BEGIN
 
     v_computed_result := morbac.is_allowed_nocache(p_user_id, p_org_id, p_activity, p_view);
 
-    INSERT INTO morbac.auth_cache (user_id, org_id, activity, view, allowed, expires_at)
-    VALUES (
-        p_user_id,
-        p_org_id,
-        p_activity,
-        p_view,
-        v_computed_result,
-        CURRENT_TIMESTAMP + make_interval(secs => morbac.get_config('cache_ttl_seconds')::integer)
-    )
-    ON CONFLICT (user_id, org_id, activity, view) DO UPDATE
-    SET allowed = v_computed_result,
-        computed_at = CURRENT_TIMESTAMP,
-        expires_at = CURRENT_TIMESTAMP + make_interval(secs => morbac.get_config('cache_ttl_seconds')::integer);
+    BEGIN
+        INSERT INTO morbac.auth_cache (user_id, org_id, activity, view, allowed, expires_at)
+        VALUES (
+            p_user_id,
+            p_org_id,
+            p_activity,
+            p_view,
+            v_computed_result,
+            CURRENT_TIMESTAMP + make_interval(secs => morbac.get_config('cache_ttl_seconds')::integer)
+        )
+        ON CONFLICT (user_id, org_id, activity, view) DO UPDATE
+        SET allowed = v_computed_result,
+            computed_at = CURRENT_TIMESTAMP,
+            expires_at = CURRENT_TIMESTAMP + make_interval(secs => morbac.get_config('cache_ttl_seconds')::integer);
+    EXCEPTION WHEN read_only_sql_transaction THEN
+        NULL;
+    END;
 
     RETURN v_computed_result;
 END;
