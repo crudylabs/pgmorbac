@@ -27,13 +27,13 @@ COMMENT ON COLUMN morbac.view_hierarchy.junior_view IS 'Junior view (more genera
 -- Default system view names — match system_view.* config keys.
 -- Override config values to rename; the new name must be seeded here too.
 INSERT INTO morbac.views (name, description) VALUES
-    ('orgs',            'Organizations table'),
-    ('roles',           'Roles table'),
-    ('rules',           'Authorization rules table'),
-    ('user_roles',      'User-role assignments table'),
-    ('contexts',        'Rule contexts table'),
-    ('activities',      'Activities table'),
-    ('views',           'Views table'),
-    ('delegations',     'Role delegations table'),
-    ('cross_org_rules', 'Cross-organization rules table')
+    ('orgs',              'Organizations table'),
+    ('roles',             'Roles table'),
+    ('rules',             'Authorization rules table'),
+    ('user_roles',        'User-role assignments table'),
+    ('user_rules',        'User-level authorization rules table'),
+    ('global_rules',      'System-wide authorization rules table'),
+    ('system_principals', 'System principals table'),
+    ('delegations',       'Role delegations table'),
+    ('cross_org_rules',   'Cross-organization rules table')
 ON CONFLICT (name) DO NOTHING;
