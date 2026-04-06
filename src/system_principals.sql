@@ -89,6 +89,12 @@ BEGIN
     IF v_user_id IS NOT NULL
        AND EXISTS (SELECT 1 FROM morbac.system_principals WHERE user_id = v_user_id)
     THEN
+        -- allow initial deploy-time insert when no rules exist yet for this principal
+        IF TG_OP = 'INSERT'
+           AND NOT EXISTS (SELECT 1 FROM morbac.global_rules WHERE user_id = v_user_id)
+        THEN
+            RETURN NEW;
+        END IF;
         RAISE EXCEPTION 'operation blocked: global rules for system principal % are immutable', v_user_id;
     END IF;
     RETURN COALESCE(NEW, OLD);
