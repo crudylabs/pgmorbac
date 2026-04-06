@@ -245,6 +245,12 @@ BEGIN
 
     v_computed_result := morbac.is_allowed_nocache(p_user_id, p_org_id, p_activity, p_view);
 
+    -- NULL org_id (global-rules-only path) cannot be stored in auth_cache (org_id NOT NULL PK).
+    -- Global rule changes flush the entire cache anyway, so skipping is safe.
+    IF p_org_id IS NULL THEN
+        RETURN v_computed_result;
+    END IF;
+
     BEGIN
         INSERT INTO morbac.auth_cache (user_id, org_id, activity, view, allowed, expires_at)
         VALUES (

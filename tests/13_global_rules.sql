@@ -380,5 +380,9 @@ SELECT morbac.t('Karl reads GlobalTech contracts [temporal global rule, expired]
         'read', 'contracts'
     ), FALSE);
 
+DELETE FROM morbac.global_rules
+WHERE user_id = '30000000-0000-0000-0000-000000000011'
+  AND activity = 'read' AND view = 'contracts';
+
 \echo ''
 \echo '=== Global Rules Tests Completed ==='

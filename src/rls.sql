@@ -162,17 +162,15 @@ BEGIN
     v_org_ids := morbac.current_org_ids();
 
     IF v_org_ids IS NOT NULL THEN
-        IF p_row_org_id IS NULL OR NOT (p_row_org_id = ANY(v_org_ids)) THEN
+        IF p_row_org_id IS NOT NULL AND NOT (p_row_org_id = ANY(v_org_ids)) THEN
             RETURN FALSE;
         END IF;
+        -- p_row_org_id NULL: global row — is_allowed(NULL) checks global_rules only
         RETURN morbac.is_allowed(v_user_id, p_row_org_id, p_activity, p_view);
     END IF;
 
-    IF p_row_org_id IS NOT NULL THEN
-        RETURN morbac.is_allowed(v_user_id, p_row_org_id, p_activity, p_view);
-    END IF;
-
-    RETURN FALSE;
+    -- No org context: use row's org (or NULL for global rows — global_rules only)
+    RETURN morbac.is_allowed(v_user_id, p_row_org_id, p_activity, p_view);
 END;
 $$;
 
