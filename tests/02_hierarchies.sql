@@ -157,6 +157,122 @@ SELECT morbac.t('Tech lead approves Engineering documents (own perm)',
     ), TRUE);
 
 -- ---------------------------------------------------------------------------
+-- Section 2b: Role hierarchy cache refresh and closure maintenance
+-- ---------------------------------------------------------------------------
+\echo ''
+\echo '--- 2b. Role hierarchy cache refresh and closure maintenance ---'
+
+-- Existing transitive closure is materialized: CEO reaches intern at depth 4.
+SELECT morbac.t('mv_role_closure includes ceo -> intern at depth 4',
+    EXISTS(
+        SELECT 1
+        FROM morbac.mv_role_closure
+        WHERE senior_role_id = '20000000-0001-0000-0000-000000000001'::uuid
+          AND junior_role_id = '20000000-0001-0000-0000-000000000005'::uuid
+          AND depth = 4
+    ), TRUE);
+
+-- Add a temporary specialist role with a unique permission, then attach it
+-- under employee so the hierarchy trigger must refresh mv_role_closure.
+INSERT INTO morbac.roles (id, org_id, name, description) VALUES
+    ('20000000-0001-0000-0000-000000000099', '10000000-0000-0000-0000-000000000001', 'temporary_specialist', 'Temporary role for role_hierarchy tests');
+
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality)
+VALUES (
+    '10000000-0000-0000-0000-000000000001',
+    '20000000-0001-0000-0000-000000000099',
+    'read', 'contracts',
+    (SELECT id FROM morbac.contexts WHERE name = 'always'),
+    'permission'
+);
+
+SELECT morbac.t('Dave (employee) initially cannot read contracts',
+    morbac.is_allowed_nocache(
+        '30000000-0000-0000-0000-000000000004'::uuid,
+        '10000000-0000-0000-0000-000000000001'::uuid,
+        'read', 'contracts'
+    ), FALSE);
+
+INSERT INTO morbac.role_hierarchy (senior_role_id, junior_role_id) VALUES
+    ('20000000-0001-0000-0000-000000000004', '20000000-0001-0000-0000-000000000099');
+
+SELECT morbac.t('mv_role_closure refreshes after role_hierarchy insert (employee -> temporary_specialist)',
+    EXISTS(
+        SELECT 1
+        FROM morbac.mv_role_closure
+        WHERE senior_role_id = '20000000-0001-0000-0000-000000000004'::uuid
+          AND junior_role_id = '20000000-0001-0000-0000-000000000099'::uuid
+          AND depth = 1
+    ), TRUE);
+
+SELECT morbac.t('Dave (employee) gains temporary_specialist permission via refreshed hierarchy',
+    morbac.is_allowed_nocache(
+        '30000000-0000-0000-0000-000000000004'::uuid,
+        '10000000-0000-0000-0000-000000000001'::uuid,
+        'read', 'contracts'
+    ), TRUE);
+
+-- Re-enable cache briefly to verify hierarchy changes invalidate stale auth decisions.
+SELECT morbac.set_config('cache_ttl_seconds', '3600');
+DELETE FROM morbac.auth_cache;
+
+SELECT morbac.t('Dave cached authorization sees inherited contracts access',
+    morbac.is_allowed(
+        '30000000-0000-0000-0000-000000000004'::uuid,
+        '10000000-0000-0000-0000-000000000001'::uuid,
+        'read', 'contracts'
+    ), TRUE);
+
+SELECT morbac.t('Dave auth result is cached before hierarchy removal',
+    EXISTS(
+        SELECT 1
+        FROM morbac.auth_cache
+        WHERE user_id = '30000000-0000-0000-0000-000000000004'::uuid
+          AND org_id = '10000000-0000-0000-0000-000000000001'::uuid
+          AND activity = 'read'
+          AND view = 'contracts'
+    ), TRUE);
+
+DELETE FROM morbac.role_hierarchy
+WHERE senior_role_id = '20000000-0001-0000-0000-000000000004'
+  AND junior_role_id = '20000000-0001-0000-0000-000000000099';
+
+SELECT morbac.t('Hierarchy change invalidates cached auth decision for Dave/contracts',
+    NOT EXISTS(
+        SELECT 1
+        FROM morbac.auth_cache
+        WHERE user_id = '30000000-0000-0000-0000-000000000004'::uuid
+          AND org_id = '10000000-0000-0000-0000-000000000001'::uuid
+          AND activity = 'read'
+          AND view = 'contracts'
+    ), TRUE);
+
+SELECT morbac.t('Dave cached authorization recomputes to denied after hierarchy removal',
+    morbac.is_allowed(
+        '30000000-0000-0000-0000-000000000004'::uuid,
+        '10000000-0000-0000-0000-000000000001'::uuid,
+        'read', 'contracts'
+    ), FALSE);
+
+DELETE FROM morbac.rules
+WHERE org_id = '10000000-0000-0000-0000-000000000001'
+  AND role_id = '20000000-0001-0000-0000-000000000099'
+  AND activity = 'read'
+  AND view = 'contracts'
+  AND modality = 'permission';
+
+DELETE FROM morbac.roles
+WHERE id = '20000000-0001-0000-0000-000000000099';
+
+DELETE FROM morbac.auth_cache
+WHERE user_id = '30000000-0000-0000-0000-000000000004'
+  AND org_id = '10000000-0000-0000-0000-000000000001'
+  AND activity = 'read'
+  AND view = 'contracts';
+
+SELECT morbac.set_config('cache_ttl_seconds', '0');
+
+-- ---------------------------------------------------------------------------
 -- Section 3: Activity hierarchy
 -- ---------------------------------------------------------------------------
 \echo ''
