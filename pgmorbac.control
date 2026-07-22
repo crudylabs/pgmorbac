@@ -1,6 +1,6 @@
 # pgmorbac extension
 # Multi-OrBAC access control model for PostgreSQL
 comment = 'Multi-OrBAC: Organization-Based Access Control with multi-organization support'
-default_version = '1.0.0'
+default_version = '0.1.0'
 relocatable = false
 schema = morbac

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-02-19
+## [0.1.0] - 2026-02-19
 
 ### Added
 - Initial release of Multi-OrBAC PostgreSQL extension
@@ -41,4 +41,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Complete documentation
 - Build and installation automation (Makefile, install.sh)
 
-[1.0.0]: https://github.com/MarcVillain/pgmorbac/releases/tag/v1.0.0
+[0.1.0]: https://git.villains.fr/crudy/pgmorbac/releases/tag/v0.1.0

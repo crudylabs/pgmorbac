@@ -2,7 +2,7 @@
   "name": "pgmorbac",
   "abstract": "Multi-OrBAC: Organization-Based Access Control with multi-organization support",
   "description": "A PostgreSQL extension implementing the Multi-OrBAC access control model — enabling organization-centric, context-aware, and hierarchical access control with delegation, separation of duty, and cross-organizational policies.",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "maintainer": [
     "Marc VILLAIN <marc.villain@epita.fr>"
   ],
@@ -10,8 +10,8 @@
   "provides": {
     "pgmorbac": {
       "abstract": "Multi-OrBAC access control extension",
-      "file": "pgmorbac--1.0.0.sql",
-      "version": "1.0.0"
+      "file": "pgmorbac--0.1.0.sql",
+      "version": "0.1.0"
     }
   },
   "prereqs": {
@@ -22,19 +22,20 @@
     }
   },
   "resources": {
-    "homepage": "https://github.com/MarcVillain/pgmorbac",
+    "homepage": "https://pgmorbac.villains.fr",
     "bugtracker": {
-      "web": "https://github.com/MarcVillain/pgmorbac/issues"
+      "web": "https://git.villains.fr/crudy/pgmorbac/issues"
     },
     "repository": {
-      "url": "https://github.com/MarcVillain/pgmorbac.git",
+      "url": "https://git.villains.fr/crudy/pgmorbac.git",
+      "web": "https://git.villains.fr/crudy/pgmorbac",
       "type": "git"
     }
   },
   "generated_by": "pgmorbac contributors",
   "meta-spec": {
     "version": "1.0.0",
-    "url": "https://pgxn.org/spec/"
+    "url": "https://pgxn.org/meta/spec.txt"
   },
   "tags": [
     "access control",

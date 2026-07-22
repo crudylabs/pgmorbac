@@ -33,7 +33,7 @@ A PostgreSQL extension implementing the Multi-OrBAC access control model - enabl
 
 ```bash
 # Clone repository
-git clone https://github.com/MarcVillain/pgmorbac.git
+git clone https://git.villains.fr/crudy/pgmorbac.git
 cd pgmorbac
 
 # Build and install extension
@@ -58,11 +58,11 @@ sudo ./tools/install.sh
 
 ```bash
 # Build versioned file from source
-make build          # Concatenates src/ files into pgmorbac--1.0.0.sql
+make build          # Concatenates src/ files into pgmorbac--0.1.0.sql
 
 # Copy files to PostgreSQL extension directory
 sudo cp pgmorbac.control $(pg_config --sharedir)/extension/
-sudo cp pgmorbac--1.0.0.sql $(pg_config --sharedir)/extension/
+sudo cp pgmorbac--0.1.0.sql $(pg_config --sharedir)/extension/
 
 # Enable in PostgreSQL
 psql -d mydb -c "CREATE EXTENSION pgmorbac;"
@@ -218,7 +218,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
-git clone https://github.com/MarcVillain/pgmorbac.git
+git clone https://git.villains.fr/crudy/pgmorbac.git
 cd pgmorbac
 
 # Edit source files in src/
@@ -238,9 +238,8 @@ git push --tags
 
 ## Support
 
-- Read the [documentation](docs/DOCUMENTATION.md)
-- Report bugs via [GitHub Issues](https://github.com/MarcVillain/pgmorbac/issues)
-- Ask questions in [Discussions](https://github.com/MarcVillain/pgmorbac/discussions)
+- Read the [documentation](https://pgmorbac.villains.fr)
+- Report bugs via [Gitea Issues](https://git.villains.fr/crudy/pgmorbac/issues)
 - Security issues: see [SECURITY.md](SECURITY.md)
 
 ## Comparison with Traditional RBAC
