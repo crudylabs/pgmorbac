@@ -1,0 +1,34 @@
+---
+kind: pipeline
+type: docker
+name: release
+
+# Cuts the signed PGXN distribution and publishes it as a Gitea release.
+# Triggered by version tags (v<major>.<minor>.<patch>).
+#
+# Repo must be Trusted in Drone. Required secrets:
+#   pgmorbac_release_key  Ed25519 private key PEM (content, not a path)
+#   gitea_token           Gitea API token with write access to crudy/pgmorbac
+
+trigger:
+  event:
+    - tag
+  ref:
+    - refs/tags/v*
+
+steps:
+  - name: build-and-release
+    image: node:24-alpine
+    environment:
+      PGMORBAC_RELEASE_KEY_PEM:
+        from_secret: pgmorbac_release_key
+      GITEA_TOKEN:
+        from_secret: gitea_token
+      GITEA_URL: https://git.villains.fr
+      GITEA_REPO: crudy/pgmorbac
+    commands:
+      - apk add --no-cache zip bash
+      - npm install --no-audit --no-fund
+      - umask 077 && printf '%s\n' "$PGMORBAC_RELEASE_KEY_PEM" > /tmp/release-key.pem
+      - PGMORBAC_RELEASE_KEY=/tmp/release-key.pem node scripts/build-dist.mjs
+      - node scripts/gitea-release.mjs

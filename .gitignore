@@ -16,3 +16,7 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+# Release tooling
+node_modules/
+dist/
+package-lock.json
