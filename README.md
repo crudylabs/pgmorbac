@@ -10,6 +10,7 @@ A PostgreSQL extension implementing the Multi-OrBAC access control model - enabl
 ## Features
 
 - Multi-organization with organizational hierarchy
+- Unattributed (no-org) objects as a first-class rule target
 - Role-based access with full hierarchy support
 - Activity and view hierarchies with transitive permission inheritance
 - Prohibition precedence over permissions
@@ -117,6 +118,12 @@ SELECT morbac.is_allowed(user_id, org_id, activity, view);
 
 -- Debugging (bypasses cache)
 SELECT morbac.is_allowed_nocache(user_id, org_id, activity, view);
+
+-- Unattributed object (no org): pass NULL as the org
+SELECT morbac.is_allowed(user_id, NULL, activity, view);
+
+-- Capability probe for UI gating (any org, unattributed, or global)
+SELECT morbac.has_permission(user_id, activity, view);
 ```
 
 See [PERFORMANCE.md](docs/PERFORMANCE.md) for optimization details.
@@ -127,11 +134,43 @@ See [PERFORMANCE.md](docs/PERFORMANCE.md) for optimization details.
 -- Enable RLS on your table
 ALTER TABLE app.documents ENABLE ROW LEVEL SECURITY;
 
--- Create policy using Multi-OrBAC
+-- Table without an org column
 CREATE POLICY doc_access ON app.documents
     FOR SELECT
     USING (morbac.rls_check('read', 'documents'));
+
+-- Table with an org column: pass it. A NULL org_id means the record
+-- is unattributed (awaiting attribution).
+CREATE POLICY doc_access ON app.documents
+    FOR SELECT
+    USING (morbac.rls_check('read', 'documents', org_id));
 ```
+
+### Unattributed (no-org) Records
+
+A record whose `org_id` is `NULL` is *unattributed*. Give a role access to that pool
+without granting anything org-wide:
+
+```sql
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, scope)
+SELECT o.id, r.id, 'read', 'documents', c.id, 'permission', 'unattributed'
+FROM morbac.orgs o
+JOIN morbac.roles r ON r.org_id = o.id AND r.name = 'triage'
+JOIN morbac.contexts c ON c.name = 'always'
+WHERE o.name = 'Acme Corp';
+```
+
+Choose which records a query returns:
+
+```sql
+SET morbac.org_ids = '[null]';              -- unattributed only (attribution queue)
+SET morbac.org_ids = '["<org-uuid>", null]';-- that org plus unattributed
+SET morbac.org_id  = '<org-uuid>';          -- that org only
+-- nothing set                              -- everything authorized, unattributed included
+```
+
+See [DOCUMENTATION.md](docs/DOCUMENTATION.md) for the full org target vocabulary
+(a specific organization, `unattributed`, or `all`).
 
 ### Advanced Features
 

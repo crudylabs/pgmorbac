@@ -1,25 +1,27 @@
 -- =============================================================================
 -- rls_check Tests
 -- =============================================================================
--- Tests morbac.rls_check() with all session-org combinations, focusing on
--- the two cases fixed to support global rows (p_row_org_id IS NULL):
+-- Tests morbac.rls_check() with all session-org combinations. A NULL row org
+-- is an unattributed object: an org filter (single pin, or org_ids without a
+-- null marker) excludes it; it is reachable via no filter or a null marker.
 --
 --   1. No user_id set: always FALSE
 --   2. Single org context
 --      a. org-scoped row, matching org
 --      b. org-scoped row, different org (blocked)
---      c. global row (NULL org_id): uses session org
+--      c. NULL row: filtered out under an org pin (orphan not requested)
 --   3. org_ids filter
 --      a. org-scoped row in list
 --      b. org-scoped row not in list (blocked)
---      c. global row + global permission  [was FALSE, now TRUE]
---      d. global row + global prohibition [was FALSE, now correctly FALSE]
---      e. global row + no rule            [was FALSE, still FALSE]
+--      c. NULL row, list without null marker: filtered out even with a grant
+--      c2. NULL row, list with null marker + global permission: allowed
+--      d. NULL row, list with null marker + global prohibition: blocked
+--      e. NULL row, list with null marker + no rule: blocked
 --   4. No org context
 --      a. org-scoped row: uses row's org
---      b. global row + global permission  [was FALSE, now TRUE]
---      c. global row + global prohibition [was FALSE, now correctly FALSE]
---      d. global row + no rule            [was FALSE, still FALSE]
+--      b. NULL row + global permission  [orphan + global rules -> TRUE]
+--      c. NULL row + global prohibition [blocked]
+--      d. NULL row + no rule            [blocked]
 --
 -- User state carried from previous tests:
 --   Karl (30000000-0000-0000-0000-000000000011):
@@ -74,13 +76,13 @@ SELECT morbac.t('rls_check single org, org row from different org (blocked)',
         '10000000-0000-0000-0000-000000000002'::uuid),
     FALSE);
 
--- 2c: global row — uses session org, so Karl's user_rule on GlobalTech applies
-SELECT morbac.t('rls_check single org, global row (NULL org_id): uses session org',
+-- 2c: NULL row — filtered out under a single org pin (orphan not requested)
+SELECT morbac.t('rls_check single org, NULL row filtered out under org pin',
     morbac.rls_check('read', 'documents', NULL),
-    TRUE);
+    FALSE);
 
--- 2c (no permission): Karl has no rule for contracts in GlobalTech
-SELECT morbac.t('rls_check single org, global row (NULL org_id): no permission for contracts',
+-- 2c (contracts): still filtered out regardless of permission
+SELECT morbac.t('rls_check single org, NULL row filtered out (contracts)',
     morbac.rls_check('read', 'contracts', NULL),
     FALSE);
 
@@ -108,7 +110,7 @@ SELECT morbac.t('rls_check org_ids, org row not in list (blocked)',
         '10000000-0000-0000-0000-000000000002'::uuid),
     FALSE);
 
--- 3c: global row + global permission — now goes to is_allowed(Karl, NULL, ...) → global_rules only
+-- 3c: NULL row, list WITHOUT null marker — filtered out even with a global grant
 INSERT INTO morbac.global_rules (user_id, activity, view, context_id, modality)
 VALUES (
     '30000000-0000-0000-0000-000000000011', -- Karl
@@ -117,7 +119,14 @@ VALUES (
     'permission'
 );
 
-SELECT morbac.t('rls_check org_ids, global row + global permission [new: was FALSE]',
+SELECT morbac.t('rls_check org_ids without null marker, NULL row filtered out despite grant',
+    morbac.rls_check('read', 'contracts', NULL),
+    FALSE);
+
+-- 3c2: NULL row, list WITH null marker + global permission — allowed
+SET morbac.org_ids = '["10000000-0000-0000-0000-000000000001", null]';
+
+SELECT morbac.t('rls_check org_ids with null marker, NULL row + global permission',
     morbac.rls_check('read', 'contracts', NULL),
     TRUE);
 
@@ -125,7 +134,7 @@ DELETE FROM morbac.global_rules
 WHERE user_id = '30000000-0000-0000-0000-000000000011'
   AND activity = 'read' AND view = 'contracts';
 
--- 3d: global row + global prohibition
+-- 3d: NULL row, list with null marker + global prohibition
 INSERT INTO morbac.global_rules (user_id, activity, view, context_id, modality)
 VALUES (
     '30000000-0000-0000-0000-000000000011', -- Karl
@@ -134,7 +143,7 @@ VALUES (
     'prohibition'
 );
 
-SELECT morbac.t('rls_check org_ids, global row + global prohibition',
+SELECT morbac.t('rls_check org_ids with null marker, NULL row + global prohibition',
     morbac.rls_check('read', 'contracts', NULL),
     FALSE);
 
@@ -142,8 +151,8 @@ DELETE FROM morbac.global_rules
 WHERE user_id = '30000000-0000-0000-0000-000000000011'
   AND activity = 'read' AND view = 'contracts';
 
--- 3e: global row + no rule
-SELECT morbac.t('rls_check org_ids, global row + no rule',
+-- 3e: NULL row, list with null marker + no rule
+SELECT morbac.t('rls_check org_ids with null marker, NULL row + no rule',
     morbac.rls_check('read', 'contracts', NULL),
     FALSE);
 

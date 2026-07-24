@@ -385,6 +385,8 @@ Every rule has a `scope` column (default `'self'`) that controls which organizat
 | `'ancestors'` | All ancestors, excluding the rule's org itself |
 | `'lineage'` | The rule's org + all ancestors |
 | `'root'` | Topmost ancestor of the rule's org |
+| `'unattributed'` | Objects with **no** org (`org_id IS NULL`) only |
+| `'all'` | Every organization, unattributed objects included |
 
 **Example: Analyst reads reports across the whole company**
 
@@ -413,6 +415,106 @@ WHERE o.name = 'EMEA Region';
 **Cache behavior:** The auth cache is fully invalidated whenever the org tree changes (`INSERT`/`UPDATE`/`DELETE` on `morbac.orgs`), so scoped rules are always consistent.
 
 **`get_org_scope(org_id, scope, max_depth?)`** is the underlying helper — it returns `(org_id, depth)` rows and can be used directly when you need to iterate over an org set. An optional `p_max_depth` limits traversal depth.
+
+### Unattributed (no-org) Objects
+
+An object whose `org_id` is `NULL` is **unattributed**: it belongs to no organization, typically because it is awaiting attribution. This is the only meaning `NULL` carries in the org dimension — it never means "any org" and never means "all orgs".
+
+#### The org target vocabulary
+
+Every rule kind selects its target the same way. There are exactly three targets:
+
+| Target | Role-based (`morbac.rules`) | User-level (roleless) |
+|---|---|---|
+| A specific organization | `scope` = `'self'`, `'subtree'`, … | `user_rules` with an `org_id` |
+| Unattributed objects | `scope` = `'unattributed'` | `user_rules` with `org_id = NULL` |
+| All orgs (unattributed included) | `scope` = `'all'` | `global_rules` |
+
+The two object classes are **partitioned**: an `'unattributed'` rule can never reach an object that has an org, and the tree scopes (`'self'`, `'subtree'`, …) can never reach an unattributed object. Only `'all'` and `global_rules` deliberately span both.
+
+#### Granting a role access to unattributed objects
+
+The declaring org is the policy authority; the role must be held **in that org**. Grant, revoke, and delegate the role exactly as usual — access to the unattributed pool follows.
+
+```sql
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, scope)
+SELECT o.id, r.id, 'read', 'documents', c.id, 'permission', 'unattributed'
+FROM morbac.orgs o
+JOIN morbac.roles r ON r.org_id = o.id AND r.name = 'triage'
+JOIN morbac.contexts c ON c.name = 'always'
+WHERE o.name = 'Acme Corp';
+```
+
+Several organizations may each declare their own policy over the same unattributed pool — that is ordinary Multi-OrBAC: independent authorities over a shared object space.
+
+Prohibitions, priorities, contexts, temporal validity, role hierarchy, delegation, derived roles, negative assignments and SoD all apply unchanged:
+
+```sql
+-- block the same role during an embargo, outranking the permission
+INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, scope, priority)
+SELECT o.id, r.id, 'read', 'documents', c.id, 'prohibition', 'unattributed', 10
+FROM morbac.orgs o
+JOIN morbac.roles r ON r.org_id = o.id AND r.name = 'triage'
+JOIN morbac.contexts c ON c.name = 'embargo'
+WHERE o.name = 'Acme Corp';
+```
+
+Granting a single user access without a role uses `user_rules` with no org:
+
+```sql
+INSERT INTO morbac.user_rules (user_id, org_id, activity, view, context_id, modality)
+SELECT '…user…'::uuid, NULL, 'read', 'documents', c.id, 'permission'
+FROM morbac.contexts c WHERE c.name = 'always';
+```
+
+#### Checking authorization
+
+`is_allowed(user, org, activity, view)` takes a specific org, or `NULL` for an unattributed object:
+
+```sql
+SELECT morbac.is_allowed(user_id, NULL, 'read', 'documents');  -- unattributed object
+```
+
+Unattributed decisions are **never cached** (the cache is keyed by a non-null org), so they always reflect current policy.
+
+#### Selecting which records to return
+
+`rls_check` has two forms, distinguished by arity so that a `NULL` never carries two meanings:
+
+```sql
+morbac.rls_check(activity, view)                              -- table has no org column
+morbac.rls_check(activity, view, row_org_id [, row_user_id])  -- row-scoped by org
+```
+
+In the row-scoped form, `row_org_id` is the record's org and a `NULL` value means the record is unattributed. The 2-argument form carries no org dimension and evaluates against the session org context.
+
+Which records come back is chosen with the session variables. A JSON `null` element in `morbac.org_ids` names the unattributed bucket:
+
+| Session | Returns |
+|---|---|
+| *(nothing set)* | all authorized records — every org **and** unattributed |
+| `morbac.org_id = '<uuid>'` | that org only — unattributed excluded |
+| `morbac.org_ids = '["<uuid>"]'` | those orgs only — unattributed excluded |
+| `morbac.org_ids = '[null]'` | **unattributed only** (the attribution queue) |
+| `morbac.org_ids = '["<uuid>", null]'` | that org **plus** unattributed |
+
+```sql
+-- the attribution queue: only records awaiting an org
+SET morbac.org_ids = '[null]';
+SELECT * FROM app.documents;
+```
+
+`morbac.current_org_filter()` is the underlying parser; it reads `morbac.org_ids` once and returns the real org UUIDs plus whether the unattributed bucket was requested.
+
+#### Capability probe for UI gating
+
+To decide whether to show a feature at all — rather than authorize a specific object — use:
+
+```sql
+SELECT morbac.has_permission(user_id, 'read', 'documents');
+```
+
+It returns TRUE when the user is allowed in **any** context: any org they are a member of, the unattributed bucket, or via global rules. Prohibitions are honored per context. It is not a substitute for object-level `is_allowed()`; a pure cross-org grant into a non-member org is not counted.
 
 ### Hierarchies
 
@@ -851,10 +953,17 @@ WHERE table_name = 'rules'
 
 ### Authorization Functions
 
-**`is_allowed(user_id, org_id, activity, view)`**: Main authorization decision. Returns BOOLEAN. Evaluates local rules, cross-org rules, user rules, and global rules; defaults to deny. Cache writes are silently skipped in read-only transactions so this function is safe to call from both read-write and read-only contexts (e.g. PostgREST GET requests).
+**`is_allowed(user_id, org_id, activity, view)`**: Main authorization decision. Returns BOOLEAN. Evaluates local rules, cross-org rules, user rules, and global rules; defaults to deny. `org_id` is a specific organization, or `NULL` when the object is unattributed (no org) — `NULL` never means "any org". Cache writes are silently skipped in read-only transactions so this function is safe to call from both read-write and read-only contexts (e.g. PostgREST GET requests). Unattributed decisions are not cached.
 
 ```sql
 SELECT morbac.is_allowed(user_uuid, org_uuid, 'read', 'documents');
+SELECT morbac.is_allowed(user_uuid, NULL,     'read', 'documents');  -- unattributed object
+```
+
+**`has_permission(user_id, activity, view)`**: Capability probe for UI gating. Returns TRUE if the user is allowed in any member org, the unattributed bucket, or via global rules. Not a substitute for object-level `is_allowed()`.
+
+```sql
+SELECT morbac.has_permission(user_uuid, 'read', 'documents');
 ```
 
 **`get_comprehensive_roles(user_id, org_id)`**: Returns all roles for user (direct, delegated, derived, hierarchy, minus negative assignments).
@@ -908,11 +1017,22 @@ SELECT * FROM morbac.get_org_scope(org_uuid, 'subtree', 2);
 
 **`current_org_id()`**: Get org ID from `request.header.x-org-id` (PostgREST) or `current_setting('morbac.org_id')`.
 
-**`rls_check(activity, view)`**: Authorization check for RLS policies using current user/org context.
+**`current_org_filter()`**: Parses `morbac.org_ids` once, returning `org_ids` (the real org UUIDs) and `include_unattributed` (TRUE when the array holds a JSON `null` element).
+
+**`current_org_ids()`**: Convenience wrapper returning only the real org UUIDs from `current_org_filter()`.
+
+**`rls_check(activity, view)`**: Authorization check for RLS policies on tables **without** an org column. Uses the session org context.
 
 ```sql
 CREATE POLICY my_policy ON app.table
 FOR SELECT USING (morbac.rls_check('read', 'documents'));
+```
+
+**`rls_check(activity, view, row_org_id [, row_user_id])`**: Row-scoped check for tables **with** an org column. `row_org_id` is the record's org; a `NULL` value means the record is unattributed. The arity distinguishes the two cases so `NULL` never carries two meanings.
+
+```sql
+CREATE POLICY my_policy ON app.documents
+FOR SELECT USING (morbac.rls_check('read', 'documents', org_id));
 ```
 
 ### Informational Functions
@@ -959,13 +1079,14 @@ WITH CHECK (morbac.rls_check('write', 'documents', org_id));
 
 #### Org scoping modes
 
-`rls_check` resolves the org scope from session variables in priority order:
+The row-scoped `rls_check` resolves which records to return from session variables in priority order. A JSON `null` element in `morbac.org_ids` names the unattributed (no-org) bucket:
 
 | Session variable | Behaviour |
 |---|---|
-| `morbac.org_id` set | scoped to that single org |
-| `morbac.org_ids` set | scoped to the provided list of orgs |
-| neither set | all orgs the user belongs to |
+| `morbac.org_id` set | that single org — unattributed excluded |
+| `morbac.org_ids` set | the listed orgs; a `null` element adds unattributed records |
+| `morbac.org_ids = '[null]'` | unattributed records only |
+| neither set | all authorized records — every org **and** unattributed |
 
 #### Setting context from HTTP headers
 

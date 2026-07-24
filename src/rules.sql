@@ -9,7 +9,11 @@
 --   'ancestors'   — all ancestors, excluding self
 --   'lineage'     — self + all ancestors
 --   'root'        — topmost ancestor only
+--   'unattributed' — no-org objects only (org_id column above is the declaring authority)
+--   'all'         — every org, unattributed included
 -- Evaluated at query time via org_in_scope() — new orgs are picked up automatically.
+--
+-- Org target vocabulary: a specific org (the tree scopes), 'unattributed', or 'all'.
 
 CREATE TABLE morbac.rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -28,7 +32,7 @@ CREATE TABLE morbac.rules (
     metadata JSONB DEFAULT '{}'::jsonb,
     UNIQUE(org_id, role_id, activity, view, context_id, modality, scope),
     CHECK (valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from),
-    CHECK (scope IN ('self', 'children', 'descendants', 'subtree', 'parent', 'ancestors', 'lineage', 'root'))
+    CHECK (scope IN ('self', 'children', 'descendants', 'subtree', 'parent', 'ancestors', 'lineage', 'root', 'unattributed', 'all'))
 );
 
 CREATE INDEX idx_rules_org_role ON morbac.rules(org_id, role_id);
@@ -40,7 +44,7 @@ INCLUDE (role_id, context_id)
 WHERE is_active = true;
 
 COMMENT ON TABLE morbac.rules IS 'Core OrBAC rules - Permission, Prohibition, Obligation, Recommendation';
-COMMENT ON COLUMN morbac.rules.scope IS 'Org scope: self (default), subtree, descendants, children, parent, ancestors, lineage, root. Evaluated at query time — new orgs are covered automatically.';
+COMMENT ON COLUMN morbac.rules.scope IS 'Object scope: self (default), subtree, descendants, children, parent, ancestors, lineage, root, unattributed, all. Selects which objects (by org) the rule reaches: a specific org via the tree scopes, unattributed for no-org objects only, or all for every org including unattributed. Evaluated at query time — new orgs are covered automatically.';
 COMMENT ON COLUMN morbac.rules.modality IS 'Deontic modality: permission, prohibition, obligation, recommendation';
 COMMENT ON COLUMN morbac.rules.priority IS 'Optional rule priority (higher wins). NULL = 0. A permission with higher priority than a prohibition overrides it.';
 

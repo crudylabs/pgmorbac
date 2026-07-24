@@ -53,14 +53,17 @@ COMMENT ON FUNCTION morbac.get_org_descendants(UUID) IS
 -- Get a named scope of organizations relative to a given org.
 --
 -- Supported scopes:
---   'self'        — the org itself only (depth = 0)
---   'children'    — direct children only (descendants at depth = 1)
---   'descendants' — all descendants, excluding self (depth > 0)
---   'subtree'     — self + all descendants (equivalent to get_org_descendants)
---   'parent'      — direct parent only (ancestor at depth = 1)
---   'ancestors'   — all ancestors, excluding self (depth > 0)
---   'lineage'     — self + all ancestors (equivalent to get_org_ancestors)
---   'root'        — topmost ancestor only (max depth ancestor)
+--   'self'         — the org itself only (depth = 0)
+--   'children'     — direct children only (descendants at depth = 1)
+--   'descendants'  — all descendants, excluding self (depth > 0)
+--   'subtree'      — self + all descendants (equivalent to get_org_descendants)
+--   'parent'       — direct parent only (ancestor at depth = 1)
+--   'ancestors'    — all ancestors, excluding self (depth > 0)
+--   'lineage'      — self + all ancestors (equivalent to get_org_ancestors)
+--   'root'         — topmost ancestor only (max depth ancestor)
+--   'unattributed' — the no-org bucket; resolves to no real orgs (empty set)
+--   'all'          — every organization (unattributed is not an org, so it is
+--                    not listed here; org_in_scope('all') does cover it)
 --
 -- Optional p_max_depth limits how many levels are traversed (NULL = unlimited).
 CREATE OR REPLACE FUNCTION morbac.get_org_scope(
@@ -126,14 +129,22 @@ BEGIN
             ORDER BY a.depth DESC
             LIMIT 1;
 
+        WHEN 'unattributed' THEN
+            RETURN QUERY
+            SELECT NULL::UUID, 0 WHERE FALSE;
+
+        WHEN 'all' THEN
+            RETURN QUERY
+            SELECT o.id, 0 FROM morbac.orgs o;
+
         ELSE
-            RAISE EXCEPTION 'get_org_scope: unknown scope "%". Valid scopes: self, children, descendants, subtree, parent, ancestors, lineage, root', p_scope;
+            RAISE EXCEPTION 'get_org_scope: unknown scope "%". Valid scopes: self, children, descendants, subtree, parent, ancestors, lineage, root, unattributed, all', p_scope;
     END CASE;
 END;
 $$;
 
 COMMENT ON FUNCTION morbac.get_org_scope(UUID, TEXT, INTEGER) IS
-'Returns a named set of organizations relative to p_org_id. Scopes: self, children, descendants, subtree, parent, ancestors, lineage, root. Optional p_max_depth limits traversal depth.';
+'Returns a named set of organizations relative to p_org_id. Scopes: self, children, descendants, subtree, parent, ancestors, lineage, root, unattributed, all. Optional p_max_depth limits traversal depth.';
 
 CREATE OR REPLACE FUNCTION morbac.get_effective_roles(p_user_id UUID, p_org_id UUID)
 RETURNS TABLE(role_id UUID, depth INTEGER)
@@ -345,6 +356,19 @@ STABLE
 SECURITY DEFINER
 AS $$
 BEGIN
+    -- Org target vocabulary: all (every org, unattributed included),
+    -- unattributed (no-org objects only), or a specific org via the tree scopes.
+    -- Tree scopes never match an unattributed object.
+    IF p_scope = 'all' THEN
+        RETURN TRUE;
+    END IF;
+    IF p_scope = 'unattributed' THEN
+        RETURN p_target_org_id IS NULL;
+    END IF;
+    IF p_target_org_id IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
     IF p_scope = 'self' THEN
         RETURN p_target_org_id = p_rule_org_id;
     END IF;
@@ -356,4 +380,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION morbac.org_in_scope(UUID, UUID, TEXT) IS
-'Returns TRUE if p_target_org_id is within get_org_scope(p_rule_org_id, p_scope). SECURITY DEFINER to bypass RLS on morbac.orgs.';
+'Returns TRUE if p_target_org_id is within get_org_scope(p_rule_org_id, p_scope). Scope unattributed matches only a NULL target; other scopes never match NULL. SECURITY DEFINER to bypass RLS on morbac.orgs.';

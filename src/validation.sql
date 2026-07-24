@@ -90,7 +90,8 @@ CREATE OR REPLACE FUNCTION morbac.detect_rule_conflicts(
     p_view       TEXT,
     p_context_id UUID,
     p_modality   morbac.modality,
-    p_exclude_id UUID DEFAULT NULL
+    p_exclude_id UUID DEFAULT NULL,
+    p_scope      TEXT DEFAULT 'self'
 )
 RETURNS TABLE(
     conflicting_rule_id  UUID,
@@ -121,6 +122,7 @@ BEGIN
       AND r.activity   = p_activity
       AND r.view       = p_view
       AND r.context_id = p_context_id
+      AND r.scope      = p_scope
       AND r.modality  != p_modality
       AND (p_exclude_id IS NULL OR r.id != p_exclude_id)
       AND (
@@ -132,8 +134,8 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION morbac.detect_rule_conflicts(UUID, UUID, TEXT, TEXT, UUID, morbac.modality, UUID) IS
-'Returns rules that directly conflict with the given tuple due to modality precedence (prohibition > obligation > recommendation > permission).';
+COMMENT ON FUNCTION morbac.detect_rule_conflicts(UUID, UUID, TEXT, TEXT, UUID, morbac.modality, UUID, TEXT) IS
+'Returns rules that directly conflict with the given tuple due to modality precedence (prohibition > obligation > recommendation > permission). Conflicts are scoped: only rules sharing the same scope compete, since different scopes target different object sets.';
 
 -- Trigger: warn (non-blocking) when a new/updated rule conflicts with an existing one
 
@@ -147,7 +149,8 @@ BEGIN
     FOR v_conflict IN
         SELECT * FROM morbac.detect_rule_conflicts(
             NEW.org_id, NEW.role_id, NEW.activity, NEW.view, NEW.context_id, NEW.modality,
-            CASE WHEN TG_OP = 'UPDATE' THEN NEW.id ELSE NULL END
+            CASE WHEN TG_OP = 'UPDATE' THEN NEW.id ELSE NULL END,
+            NEW.scope
         )
     LOOP
         RAISE WARNING 'Rule conflict: % (conflicts with rule %)',

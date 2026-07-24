@@ -40,5 +40,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite with 20 test scenarios
 - Complete documentation
 - Build and installation automation (Makefile, install.sh)
+- Unattributed (no-org) object support:
+  - Org target vocabulary shared by every rule kind: a specific organization,
+    `unattributed` (objects with no org), or `all` (every org, unattributed included)
+  - `rules.scope` values `unattributed` and `all`
+  - `user_rules.org_id` accepts NULL to target unattributed objects
+  - `org_in_scope()` partitions the two object classes: `unattributed` matches only
+    a NULL target, tree scopes never match one
+  - `morbac.has_permission(user, activity, view)` capability probe for UI gating
+  - `morbac.current_org_filter()` parses `morbac.org_ids` once into org UUIDs plus
+    the unattributed-bucket flag (a JSON `null` element requests it)
+  - `rls_check()` split by arity so NULL never carries two meanings:
+    `rls_check(activity, view)` for tables with no org column,
+    `rls_check(activity, view, row_org_id[, row_user_id])` for row-scoped tables
+    where a NULL `row_org_id` means the record is unattributed
 
 [0.1.0]: https://git.villains.fr/crudy/pgmorbac/releases/tag/v0.1.0

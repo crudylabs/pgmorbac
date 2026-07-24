@@ -11,11 +11,17 @@
 -- - When both a prohibition and a permission apply, the higher-priority rule wins
 -- - Tie goes to prohibition (modality precedence from the Multi-OrBAC paper)
 --
+-- Org target (p_org_id): a specific org, or NULL meaning the object is
+-- unattributed (has no org). NULL never means "any org".
+--
 -- Scope:
--- - rules.scope controls which orgs a rule covers (self/subtree/descendants/...).
+-- - rules.scope selects which objects a rule covers: a specific org
+--   (self/subtree/descendants/...), 'unattributed', or 'all'.
 --   Evaluated at query time via org_in_scope() — new orgs are covered automatically.
 -- - cross_org_rules.source_org_id is always required: user must hold the role there.
--- - user_rules target a specific user directly (no role required).
+-- - user_rules target a specific user directly (no role required); their org_id
+--   is a specific org, or NULL for unattributed objects.
+-- - global_rules apply to every org, unattributed included.
 
 CREATE OR REPLACE FUNCTION morbac.is_allowed_nocache(
     p_user_id UUID,
@@ -84,7 +90,7 @@ BEGIN
             SELECT ur.context_id, COALESCE(ur.priority, 0) AS prio
             FROM morbac.user_rules ur
             WHERE ur.user_id = p_user_id
-              AND ur.org_id = p_org_id
+              AND ur.org_id IS NOT DISTINCT FROM p_org_id
               AND ur.modality = 'prohibition'
               AND ur.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
               AND ur.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
@@ -163,7 +169,7 @@ BEGIN
         SELECT ur.context_id, COALESCE(ur.priority, 0) AS prio
         FROM morbac.user_rules ur
         WHERE ur.user_id = p_user_id
-          AND ur.org_id = p_org_id
+          AND ur.org_id IS NOT DISTINCT FROM p_org_id
           AND ur.modality = 'permission'
           AND ur.activity IN (SELECT activity FROM morbac.get_effective_activities(p_activity))
           AND ur.view     IN (SELECT view     FROM morbac.get_effective_views(p_view))
@@ -275,3 +281,30 @@ $$;
 
 COMMENT ON FUNCTION morbac.is_allowed(UUID, UUID, TEXT, TEXT) IS
 'Complete OrBAC authorization with caching (default) - use is_allowed_nocache() for debugging';
+
+-- Capability probe: does the user hold the permission in ANY context (any org
+-- they are a member of, or the no-org bucket, or via global rules)? Intended
+-- for UI feature gating, not object-level enforcement. Prohibitions are honored
+-- per context: a context counts only if is_allowed() returns true there.
+-- Pure cross-org grants into a non-member org are not counted.
+CREATE OR REPLACE FUNCTION morbac.has_permission(
+    p_user_id UUID,
+    p_activity TEXT,
+    p_view TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1
+        FROM morbac.get_user_orgs(p_user_id) o
+        WHERE morbac.is_allowed(p_user_id, o.org_id, p_activity, p_view)
+    ) OR morbac.is_allowed(p_user_id, NULL, p_activity, p_view);
+END;
+$$;
+
+COMMENT ON FUNCTION morbac.has_permission(UUID, TEXT, TEXT) IS
+'Capability probe for UI gating: TRUE if the user is allowed the activity/view in any member org, the no-org bucket, or via global rules. Not a substitute for object-level is_allowed().';
