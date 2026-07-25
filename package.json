@@ -1,6 +1,6 @@
 {
   "name": "pgmorbac-release-tools",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "Release tooling for the pgmorbac PostgreSQL extension (build + sign + publish the PGXN distribution).",

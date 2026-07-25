@@ -59,11 +59,11 @@ sudo ./tools/install.sh
 
 ```bash
 # Build versioned file from source
-make build          # Concatenates src/ files into pgmorbac--0.1.0.sql
+make build          # Concatenates src/ files into pgmorbac--1.0.0.sql
 
 # Copy files to PostgreSQL extension directory
 sudo cp pgmorbac.control $(pg_config --sharedir)/extension/
-sudo cp pgmorbac--0.1.0.sql $(pg_config --sharedir)/extension/
+sudo cp pgmorbac--1.0.0.sql $(pg_config --sharedir)/extension/
 
 # Enable in PostgreSQL
 psql -d mydb -c "CREATE EXTENSION pgmorbac;"
