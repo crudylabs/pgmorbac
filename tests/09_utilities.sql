@@ -3,14 +3,14 @@
 -- =============================================================================
 -- Tests miscellaneous utility functions and advanced features:
 --
---   1. pending_obligations — returns obligation rules for a user
---   2. pending_recommendations — returns recommendation rules for a user
+--   1. pending_obligations - returns obligation rules for a user
+--   2. pending_recommendations - returns recommendation rules for a user
 --   3. Obligations/recommendations do NOT affect is_allowed()
 --   3b. Conflict resolution: prohibition voids obligation; prohibition/obligation voids recommendation
---   4. user_has_role — checks if user holds a named role
---   5. user_roles_in_org — lists all roles for user in org
---   6. eval_context — evaluates context predicates directly
---   7. Derived roles — computed via evaluator function
+--   4. user_has_role - checks if user holds a named role
+--   5. user_roles_in_org - lists all roles for user in org
+--   6. eval_context - evaluates context predicates directly
+--   7. Derived roles - computed via evaluator function
 --   8. RLS helpers: get_user_orgs, current_org_ids, rls_check() org scoping
 --
 -- Prerequisites: 00_setup.sql -> 08_system_access.sql
@@ -18,7 +18,7 @@
 
 \echo ''
 \echo '================================================================'
-\echo '09 — UTILITIES, DERIVED ROLES, RLS'
+\echo '09 - UTILITIES, DERIVED ROLES, RLS'
 \echo '================================================================'
 
 -- ---------------------------------------------------------------------------
@@ -139,7 +139,7 @@ SELECT morbac.t('Dave has recommendation for read audit_logs but no permission [
     ), FALSE);
 
 -- ---------------------------------------------------------------------------
--- Section 3b: Conflict resolution — prohibition voids obligation/recommendation
+-- Section 3b: Conflict resolution - prohibition voids obligation/recommendation
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 3b. Conflict resolution: prohibition voids obligation and recommendation ---'
@@ -330,13 +330,13 @@ SELECT morbac.t('eval_context(end_of_quarter) = TRUE',
 \echo ''
 \echo '--- 7. Derived roles ---'
 
--- Create a derived role: 'senior_employee' — dynamically granted to Dave (only)
+-- Create a derived role: 'senior_employee' - dynamically granted to Dave (only)
 INSERT INTO morbac.roles (id, org_id, name, description)
 VALUES (
     '20000000-0001-0000-0000-000000000011',
     '10000000-0000-0000-0000-000000000001',
     'senior_employee',
-    'Senior employee — granted dynamically based on tenure'
+    'Senior employee - granted dynamically based on tenure'
 );
 
 -- Evaluator function: returns TRUE only for Dave at GlobalTech
@@ -379,7 +379,7 @@ SELECT morbac.t('Dave has senior_employee derived role in comprehensive roles',
           AND source = 'derived'
     ), TRUE);
 
--- Eve (intern) does NOT satisfy the evaluator — no derived role
+-- Eve (intern) does NOT satisfy the evaluator - no derived role
 SELECT morbac.t('Eve has no derived roles in comprehensive roles',
     NOT EXISTS(
         SELECT 1 FROM morbac.get_comprehensive_roles(

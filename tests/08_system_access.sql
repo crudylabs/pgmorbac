@@ -10,7 +10,7 @@
 --   2. Grant permissions via regular rules, verify access
 --   3. Prohibition overrides permission (standard engine behavior)
 --   4. Role hierarchy applies: senior role inherits permissions
---   5. assign_role() / revoke_role() — SoD/cardinality enforcement, RLS guards the INSERT/DELETE
+--   5. assign_role() / revoke_role() - SoD/cardinality enforcement, RLS guards the INSERT/DELETE
 --   6. RLS on morbac tables: session user cannot read/write without rules
 --   7. Rules are org-scoped
 --
@@ -19,7 +19,7 @@
 
 \echo ''
 \echo '================================================================'
-\echo '08 — SYSTEM ACCESS'
+\echo '08 - SYSTEM ACCESS'
 \echo '================================================================'
 
 -- ---------------------------------------------------------------------------
@@ -218,7 +218,7 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA morbac TO morbac_rls_tester;
 
 SET SESSION AUTHORIZATION morbac_rls_tester;
 
--- Grace (hr_manager) has create/delete on user_roles — RLS should allow
+-- Grace (hr_manager) has create/delete on user_roles - RLS should allow
 SET morbac.user_id = '30000000-0000-0000-0000-000000000007';
 SET morbac.org_id  = '10000000-0000-0000-0000-000000000001';
 
@@ -241,7 +241,7 @@ WHERE user_id = '30000000-0000-0000-0000-000000000011'
   AND role_id = '20000000-0001-0000-0000-000000000005'
   AND org_id = '10000000-0000-0000-0000-000000000001';
 
--- Dave (employee) has no rules for user_roles — RLS should block
+-- Dave (employee) has no rules for user_roles - RLS should block
 SET morbac.user_id = '30000000-0000-0000-0000-000000000004';
 SET morbac.org_id  = '10000000-0000-0000-0000-000000000001';
 

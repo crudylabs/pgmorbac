@@ -5,25 +5,25 @@
 -- No activity or view hierarchy is active yet (added in 02_hierarchies.sql).
 --
 -- Users and their roles at GlobalTech HQ:
---   Alice   — ceo           (permission: inherits all via hierarchy)
---   Bob     — director      (inherits manager -> employee -> intern)
---   Carol   — manager       (inherits employee -> intern)
---   Dave    — employee      (inherits intern)
---   Eve     — intern
---   Frank   — contractor    (has prohibition on financial/hr data)
---   Grace   — hr_manager
---   Heidi   — auditor
---   Ivan    — accountant
---   Judy    — engineer@Engineering + sales_rep@Sales (multi-org)
---   Karl    — no role
---   Leo     — employee
+--   Alice - ceo           (permission: inherits all via hierarchy)
+--   Bob - director      (inherits manager -> employee -> intern)
+--   Carol - manager       (inherits employee -> intern)
+--   Dave - employee      (inherits intern)
+--   Eve - intern
+--   Frank - contractor    (has prohibition on financial/hr data)
+--   Grace - hr_manager
+--   Heidi - auditor
+--   Ivan - accountant
+--   Judy - engineer@Engineering + sales_rep@Sales (multi-org)
+--   Karl - no role
+--   Leo - employee
 --
 -- Prerequisites: 00_setup.sql
 -- =============================================================================
 
 \echo ''
 \echo '================================================================'
-\echo '01 — CORE AUTHORIZATION DECISIONS'
+\echo '01 - CORE AUTHORIZATION DECISIONS'
 \echo '================================================================'
 
 -- ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@
 \echo ''
 \echo '--- 1. Basic permission grants ---'
 
--- Dave (employee) can read documents — has explicit permission
+-- Dave (employee) can read documents - has explicit permission
 SELECT morbac.t('Dave (employee) reads documents',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -40,7 +40,7 @@ SELECT morbac.t('Dave (employee) reads documents',
         'read', 'documents'
     ), TRUE);
 
--- Dave (employee) can write documents — context is business_hours (evaluates TRUE)
+-- Dave (employee) can write documents - context is business_hours (evaluates TRUE)
 SELECT morbac.t('Dave (employee) writes documents [business_hours context=true]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -89,12 +89,12 @@ SELECT morbac.t('Ivan (accountant) writes financial_data',
     ), TRUE);
 
 -- ---------------------------------------------------------------------------
--- Section 2: Default deny — no rule exists for the combination
+-- Section 2: Default deny - no rule exists for the combination
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 2. Default deny (no permission rule) ---'
 
--- Dave (employee) cannot delete documents — no delete permission for employee
+-- Dave (employee) cannot delete documents - no delete permission for employee
 SELECT morbac.t('Dave (employee) deletes documents [no permission]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -102,7 +102,7 @@ SELECT morbac.t('Dave (employee) deletes documents [no permission]',
         'delete', 'documents'
     ), FALSE);
 
--- Eve (intern) cannot read documents — intern only has public_data permission
+-- Eve (intern) cannot read documents - intern only has public_data permission
 SELECT morbac.t('Eve (intern) reads documents [intern has no docs permission]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000005'::uuid,
@@ -110,7 +110,7 @@ SELECT morbac.t('Eve (intern) reads documents [intern has no docs permission]',
         'read', 'documents'
     ), FALSE);
 
--- Dave (employee) cannot read financial_data — no rule for employee -> financial_data
+-- Dave (employee) cannot read financial_data - no rule for employee -> financial_data
 SELECT morbac.t('Dave (employee) reads financial_data [no permission before view hierarchy]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -118,7 +118,7 @@ SELECT morbac.t('Dave (employee) reads financial_data [no permission before view
         'read', 'financial_data'
     ), FALSE);
 
--- Grace (hr_manager) cannot read audit_logs — no rule for hr_manager -> audit_logs
+-- Grace (hr_manager) cannot read audit_logs - no rule for hr_manager -> audit_logs
 SELECT morbac.t('Grace (hr_manager) reads audit_logs [no permission]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000007'::uuid,
@@ -126,7 +126,7 @@ SELECT morbac.t('Grace (hr_manager) reads audit_logs [no permission]',
         'read', 'audit_logs'
     ), FALSE);
 
--- Dave (employee) cannot approve documents — no approve permission for employee
+-- Dave (employee) cannot approve documents - no approve permission for employee
 SELECT morbac.t('Dave (employee) approves documents [no permission]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -135,12 +135,12 @@ SELECT morbac.t('Dave (employee) approves documents [no permission]',
     ), FALSE);
 
 -- ---------------------------------------------------------------------------
--- Section 3: Default deny — user has no role at all
+-- Section 3: Default deny - user has no role at all
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 3. Default deny (user has no role) ---'
 
--- Karl has no role anywhere — all actions denied
+-- Karl has no role anywhere - all actions denied
 SELECT morbac.t('Karl (no role) reads documents',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000011'::uuid,
@@ -148,7 +148,7 @@ SELECT morbac.t('Karl (no role) reads documents',
         'read', 'documents'
     ), FALSE);
 
--- Completely unknown user UUID — EXPECT FALSE
+-- Completely unknown user UUID - EXPECT FALSE
 SELECT morbac.t('Unknown user reads documents',
     morbac.is_allowed_nocache(
         'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid,
@@ -162,7 +162,7 @@ SELECT morbac.t('Unknown user reads documents',
 \echo ''
 \echo '--- 4. Prohibition overrides permission ---'
 
--- Frank (contractor) reads documents — permission granted, no prohibition
+-- Frank (contractor) reads documents - permission granted, no prohibition
 SELECT morbac.t('Frank (contractor) reads documents [has permission]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000006'::uuid,
@@ -170,7 +170,7 @@ SELECT morbac.t('Frank (contractor) reads documents [has permission]',
         'read', 'documents'
     ), TRUE);
 
--- Frank (contractor) reads financial_data — PROHIBITED
+-- Frank (contractor) reads financial_data - PROHIBITED
 SELECT morbac.t('Frank (contractor) reads financial_data [prohibited]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000006'::uuid,
@@ -178,7 +178,7 @@ SELECT morbac.t('Frank (contractor) reads financial_data [prohibited]',
         'read', 'financial_data'
     ), FALSE);
 
--- Frank (contractor) reads hr_data — prohibited
+-- Frank (contractor) reads hr_data - prohibited
 SELECT morbac.t('Frank (contractor) reads hr_data [prohibited]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000006'::uuid,
@@ -211,7 +211,7 @@ WHERE org_id = '10000000-0000-0000-0000-000000000001'
   AND activity = 'read' AND view = 'financial_data' AND modality = 'permission';
 
 -- ---------------------------------------------------------------------------
--- Section 5: Context filtering — rule only applies when context is TRUE
+-- Section 5: Context filtering - rule only applies when context is TRUE
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 5. Context filtering ---'
@@ -256,7 +256,7 @@ WHERE org_id = '10000000-0000-0000-0000-000000000001'
   AND activity = 'export' AND view = 'documents';
 
 -- ---------------------------------------------------------------------------
--- Section 6: Wrong organization — user has no role in the target org
+-- Section 6: Wrong organization - user has no role in the target org
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 6. Wrong organization ---'
@@ -278,12 +278,12 @@ SELECT morbac.t('Judy (Engineering engineer) reads GlobalTech financial_data [no
     ), FALSE);
 
 -- ---------------------------------------------------------------------------
--- Section 7: Multi-organization user — access scoped to each org independently
+-- Section 7: Multi-organization user - access scoped to each org independently
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 7. Multi-org user (Judy) ---'
 
--- Judy is engineer at Engineering — can read documents there
+-- Judy is engineer at Engineering - can read documents there
 SELECT morbac.t('Judy (engineer) reads Engineering documents',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000010'::uuid,
@@ -291,7 +291,7 @@ SELECT morbac.t('Judy (engineer) reads Engineering documents',
         'read', 'documents'
     ), TRUE);
 
--- Judy is sales_rep at Sales — can write contracts there
+-- Judy is sales_rep at Sales - can write contracts there
 SELECT morbac.t('Judy (sales_rep) writes Sales contracts',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000010'::uuid,
@@ -313,7 +313,7 @@ SELECT morbac.t('Judy writes documents at Sales [engineer perms dont carry over]
 \echo ''
 \echo '--- 8. Role hierarchy inheritance ---'
 
--- Carol (manager) inherits employee permissions — can read documents (employee perm)
+-- Carol (manager) inherits employee permissions - can read documents (employee perm)
 SELECT morbac.t('Carol (manager, inherits employee) reads documents',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000003'::uuid,
@@ -321,7 +321,7 @@ SELECT morbac.t('Carol (manager, inherits employee) reads documents',
         'read', 'documents'
     ), TRUE);
 
--- Carol (manager) has own permission — can approve documents
+-- Carol (manager) has own permission - can approve documents
 SELECT morbac.t('Carol (manager) approves documents [own permission]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000003'::uuid,
@@ -329,7 +329,7 @@ SELECT morbac.t('Carol (manager) approves documents [own permission]',
         'approve', 'documents'
     ), TRUE);
 
--- Bob (director) inherits manager -> employee chain — can read documents
+-- Bob (director) inherits manager -> employee chain - can read documents
 SELECT morbac.t('Bob (director, inherits manager+employee) reads documents',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000002'::uuid,
@@ -337,7 +337,7 @@ SELECT morbac.t('Bob (director, inherits manager+employee) reads documents',
         'read', 'documents'
     ), TRUE);
 
--- Bob (director) inherits manager — can approve documents
+-- Bob (director) inherits manager - can approve documents
 SELECT morbac.t('Bob (director, inherits manager) approves documents',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000002'::uuid,
@@ -345,7 +345,7 @@ SELECT morbac.t('Bob (director, inherits manager) approves documents',
         'approve', 'documents'
     ), TRUE);
 
--- Alice (CEO) inherits the entire hierarchy — can do everything below
+-- Alice (CEO) inherits the entire hierarchy - can do everything below
 SELECT morbac.t('Alice (CEO, inherits all) reads documents',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000001'::uuid,
@@ -367,7 +367,7 @@ SELECT morbac.t('Alice (CEO, inherits all) deletes documents',
         'delete', 'documents'
     ), TRUE);
 
--- Eve (intern) cannot approve — intern has no approve permission
+-- Eve (intern) cannot approve - intern has no approve permission
 SELECT morbac.t('Eve (intern) approves documents [intern has no approve permission]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000005'::uuid,
@@ -464,7 +464,7 @@ SELECT morbac.t('Dave reads contracts: prohibition priority=10 beats permission 
 -- Equal priorities: prohibition wins (modality tiebreaker)
 UPDATE morbac.rules SET priority = 5 WHERE id = 'e0000000-0000-0000-0000-000000000001';
 
-SELECT morbac.t('Dave reads contracts: equal priority — prohibition wins by modality precedence [denied]',
+SELECT morbac.t('Dave reads contracts: equal priority - prohibition wins by modality precedence [denied]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
         '10000000-0000-0000-0000-000000000001'::uuid,
@@ -477,7 +477,7 @@ UPDATE morbac.rules SET priority = NULL WHERE id IN (
     'e0000000-0000-0000-0000-000000000002'
 );
 
-SELECT morbac.t('Dave reads contracts: no priority set — prohibition wins by default [denied]',
+SELECT morbac.t('Dave reads contracts: no priority set - prohibition wins by default [denied]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
         '10000000-0000-0000-0000-000000000001'::uuid,

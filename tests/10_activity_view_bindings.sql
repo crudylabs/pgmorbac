@@ -2,8 +2,8 @@
 -- Activity-View Binding Tests
 -- =============================================================================
 -- Tests opt-in activity-to-view restrictions:
---   1. No bindings defined — any view is allowed
---   2. Binding defined — listed view is allowed, unlisted view is blocked
+--   1. No bindings defined - any view is allowed
+--   2. Binding defined - listed view is allowed, unlisted view is blocked
 --   3. Blocking applies to cross_org_rules as well
 --   4. Removing all bindings lifts the restriction
 --
@@ -12,11 +12,11 @@
 
 \echo ''
 \echo '================================================================'
-\echo '10 — ACTIVITY-VIEW BINDINGS'
+\echo '10 - ACTIVITY-VIEW BINDINGS'
 \echo '================================================================'
 
 -- ---------------------------------------------------------------------------
--- Section 1: No bindings — unconstrained
+-- Section 1: No bindings - unconstrained
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 1. No bindings: any view is allowed ---'
@@ -39,7 +39,7 @@ SELECT morbac.t('No bindings: audit/documents rule inserted successfully',
 DELETE FROM morbac.rules WHERE id = 'b0000000-0000-0000-0000-000000000001';
 
 -- ---------------------------------------------------------------------------
--- Section 2: Binding defined — listed view allowed, unlisted view blocked
+-- Section 2: Binding defined - listed view allowed, unlisted view blocked
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 2. Binding defined: allowed view works, unlisted view blocked ---'

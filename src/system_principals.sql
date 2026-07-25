@@ -7,7 +7,7 @@
 --   - No targeted global_rules prohibitions
 --   - All prohibitions are skipped in is_allowed_nocache() (see authorization.sql)
 --
--- This table has no INSERT/UPDATE/DELETE RLS policies — only the database owner
+-- This table has no INSERT/UPDATE/DELETE RLS policies - only the database owner
 -- can register or remove system principals (done in SQL at deploy time).
 -- SELECT is gated by is_allowed() like all other system tables.
 
@@ -17,7 +17,7 @@ CREATE TABLE morbac.system_principals (
 );
 
 COMMENT ON TABLE morbac.system_principals IS
-'Registry of backend service accounts. Immutable at the trigger level — no policy can touch them.';
+'Registry of backend service accounts. Immutable at the trigger level - no policy can touch them.';
 COMMENT ON COLUMN morbac.system_principals.user_id IS
 'External user UUID of the service account';
 

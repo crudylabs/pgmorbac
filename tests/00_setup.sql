@@ -1,11 +1,11 @@
 -- =============================================================================
--- Test Setup — GlobalTech Inc. Company Scenario
+-- Test Setup - GlobalTech Inc. Company Scenario
 -- =============================================================================
 -- This file establishes the full company structure used across all test files:
 --
 --   GlobalTech HQ (root)
---   ├── Engineering Dept (child)
---   └── Sales Dept (child)
+--   +-- Engineering Dept (child)
+--   \-- Sales Dept (child)
 --
 -- Role hierarchy in GlobalTech (senior -> junior, i.e. senior inherits junior perms):
 --   ceo -> director -> manager -> employee -> intern
@@ -15,18 +15,18 @@
 --   tech_lead -> engineer
 --
 -- Users:
---   Alice   — CEO at GlobalTech
---   Bob     — Director at GlobalTech
---   Carol   — Manager at GlobalTech
---   Dave    — Employee at GlobalTech
---   Eve     — Intern at GlobalTech
---   Frank   — Contractor at GlobalTech
---   Grace   — HR Manager at GlobalTech
---   Heidi   — Auditor at GlobalTech
---   Ivan    — Accountant at GlobalTech
---   Judy    — Engineer at Engineering + Sales Rep at Sales (multi-org)
---   Karl    — No role (unauthorized user)
---   Leo     — Employee at GlobalTech (used for delegation target)
+--   Alice - CEO at GlobalTech
+--   Bob - Director at GlobalTech
+--   Carol - Manager at GlobalTech
+--   Dave - Employee at GlobalTech
+--   Eve - Intern at GlobalTech
+--   Frank - Contractor at GlobalTech
+--   Grace - HR Manager at GlobalTech
+--   Heidi - Auditor at GlobalTech
+--   Ivan - Accountant at GlobalTech
+--   Judy - Engineer at Engineering + Sales Rep at Sales (multi-org)
+--   Karl - No role (unauthorized user)
+--   Leo - Employee at GlobalTech (used for delegation target)
 -- =============================================================================
 
 -- Clean slate
@@ -55,7 +55,7 @@ WHERE id IN (
     '10000000-0000-0000-0000-000000000003'
 );
 
-SELECT o.name, COALESCE(p.name, '—') AS parent
+SELECT o.name, COALESCE(p.name, ' - ') AS parent
 FROM morbac.orgs o LEFT JOIN morbac.orgs p ON o.parent_id = p.id
 ORDER BY o.parent_id NULLS FIRST, o.name;
 
@@ -122,7 +122,7 @@ JOIN morbac.roles jr ON jr.id = rh.junior_role_id
 ORDER BY sr.name;
 
 -- ---------------------------------------------------------------------------
--- USER — ROLE ASSIGNMENTS
+-- USER - ROLE ASSIGNMENTS
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '=== Setup: User-Role Assignments ==='
@@ -155,7 +155,7 @@ INSERT INTO morbac.user_roles (user_id, role_id, org_id) VALUES
     ('30000000-0000-0000-0000-000000000010', '20000000-0002-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002'),
     ('30000000-0000-0000-0000-000000000010', '20000000-0003-0000-0000-000000000002', '10000000-0000-0000-0000-000000000003');
 
--- Karl: no role (unauthorized user — intentionally not assigned any role)
+-- Karl: no role (unauthorized user - intentionally not assigned any role)
 
 SELECT ur.user_id, r.name AS role, o.name AS organization
 FROM morbac.user_roles ur
@@ -214,7 +214,7 @@ BEGIN RETURN TRUE; END;
 $$;
 
 INSERT INTO morbac.contexts (name, description, evaluator) VALUES
-    ('business_hours',   'During business hours (Mon–Fri 9–17)',  'morbac.ctx_business_hours'::regproc),
+    ('business_hours',   'During business hours (Mon-Fri 9-17)',  'morbac.ctx_business_hours'::regproc),
     ('after_hours',      'Outside business hours',                 'morbac.ctx_after_hours'::regproc),
     ('end_of_quarter',   'End-of-quarter reporting window',        'morbac.ctx_end_of_quarter'::regproc);
 
@@ -274,7 +274,7 @@ JOIN morbac.contexts c ON c.name = v.context_name;
 -- Disable auth cache so state changes between calls are always reflected
 SELECT morbac.set_config('cache_ttl_seconds', '0');
 
--- morbac.t(label, actual, expected) — boolean assertion
+-- morbac.t(label, actual, expected) - boolean assertion
 CREATE OR REPLACE FUNCTION morbac.t(label TEXT, actual BOOLEAN, expect BOOLEAN)
 RETURNS TEXT LANGUAGE sql STABLE AS $$
     SELECT CASE WHEN actual IS NOT DISTINCT FROM expect
@@ -284,7 +284,7 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
            END;
 $$;
 
--- morbac.t_null(label, actual) — assert value is NULL
+-- morbac.t_null(label, actual) - assert value is NULL
 CREATE OR REPLACE FUNCTION morbac.t_null(label TEXT, actual TEXT)
 RETURNS TEXT LANGUAGE sql STABLE AS $$
     SELECT CASE WHEN actual IS NULL
@@ -293,7 +293,7 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
            END;
 $$;
 
--- morbac.t_not_null(label, actual) — assert value is NOT NULL
+-- morbac.t_not_null(label, actual) - assert value is NOT NULL
 CREATE OR REPLACE FUNCTION morbac.t_not_null(label TEXT, actual TEXT)
 RETURNS TEXT LANGUAGE sql STABLE AS $$
     SELECT CASE WHEN actual IS NOT NULL
@@ -302,7 +302,7 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
            END;
 $$;
 
--- morbac.t_eq(label, actual, expected) — assert two numeric values are equal
+-- morbac.t_eq(label, actual, expected) - assert two numeric values are equal
 CREATE OR REPLACE FUNCTION morbac.t_eq(label TEXT, actual NUMERIC, expect NUMERIC)
 RETURNS TEXT LANGUAGE sql STABLE AS $$
     SELECT CASE WHEN actual = expect

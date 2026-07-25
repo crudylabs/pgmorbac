@@ -9,7 +9,7 @@
 --   3. Expired rule (valid_until in the past) -> denied
 --   4. Future rule (valid_from in the future) -> denied
 --   5. Active time window (valid_from past, valid_until future) -> allowed
---   6. Multiple rules for same combination — only active ones count
+--   6. Multiple rules for same combination - only active ones count
 --   7. Expired prohibition: no longer blocks access after it expires
 --   8. Temporal rules interact correctly with role hierarchy
 --
@@ -21,7 +21,7 @@
 
 \echo ''
 \echo '================================================================'
-\echo '05 — TEMPORAL CONSTRAINTS'
+\echo '05 - TEMPORAL CONSTRAINTS'
 \echo '================================================================'
 
 -- ---------------------------------------------------------------------------
@@ -37,35 +37,35 @@ INSERT INTO morbac.views (name, description) VALUES
 \echo '--- 1. is_rule_valid() helper ---'
 
 -- No bounds: always valid
-SELECT morbac.t('is_rule_valid(NULL, NULL) — always valid',
+SELECT morbac.t('is_rule_valid(NULL, NULL) - always valid',
     morbac.is_rule_valid(NULL::timestamptz, NULL::timestamptz), TRUE);
 
 -- Past valid_from, no valid_until: currently active
-SELECT morbac.t('is_rule_valid(past, NULL) — started in past, no end',
+SELECT morbac.t('is_rule_valid(past, NULL) - started in past, no end',
     morbac.is_rule_valid('2000-01-01'::timestamptz, NULL), TRUE);
 
 -- Future valid_from: not yet active
-SELECT morbac.t('is_rule_valid(future, NULL) — not yet started',
+SELECT morbac.t('is_rule_valid(future, NULL) - not yet started',
     morbac.is_rule_valid('2099-01-01'::timestamptz, NULL), FALSE);
 
 -- Past valid_until: expired
-SELECT morbac.t('is_rule_valid(NULL, past) — already expired',
+SELECT morbac.t('is_rule_valid(NULL, past) - already expired',
     morbac.is_rule_valid(NULL, '2000-01-01'::timestamptz), FALSE);
 
 -- Future valid_until, no valid_from: currently active
-SELECT morbac.t('is_rule_valid(NULL, future) — no start, future end',
+SELECT morbac.t('is_rule_valid(NULL, future) - no start, future end',
     morbac.is_rule_valid(NULL, '2099-01-01'::timestamptz), TRUE);
 
 -- Active window: past start, future end
-SELECT morbac.t('is_rule_valid(past, future) — within active window',
+SELECT morbac.t('is_rule_valid(past, future) - within active window',
     morbac.is_rule_valid('2000-01-01'::timestamptz, '2099-01-01'::timestamptz), TRUE);
 
 -- Fully past window (both start and end in the past)
-SELECT morbac.t('is_rule_valid(past_start, past_end) — entirely expired',
+SELECT morbac.t('is_rule_valid(past_start, past_end) - entirely expired',
     morbac.is_rule_valid('2000-01-01'::timestamptz, '2001-01-01'::timestamptz), FALSE);
 
 -- Fully future window (both start and end in the future)
-SELECT morbac.t('is_rule_valid(future_start, future_end) — entirely in the future',
+SELECT morbac.t('is_rule_valid(future_start, future_end) - entirely in the future',
     morbac.is_rule_valid('2090-01-01'::timestamptz, '2099-01-01'::timestamptz), FALSE);
 
 -- ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ SELECT morbac.t('is_active = FALSE after valid_until set to past',
 DELETE FROM morbac.rules WHERE activity = 'audit' AND view = 'temp_view';
 
 -- ---------------------------------------------------------------------------
--- Section 3: Expired rule — valid_until in the past
+-- Section 3: Expired rule - valid_until in the past
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 3. Expired rule (valid_until in the past) ---'
@@ -129,7 +129,7 @@ SELECT morbac.t('Dave (employee) exports temp_view via expired rule [denied]',
     ), FALSE);
 
 -- ---------------------------------------------------------------------------
--- Section 4: Future rule — valid_from in the future
+-- Section 4: Future rule - valid_from in the future
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 4. Future rule (valid_from in the future) ---'
@@ -209,7 +209,7 @@ SELECT morbac.t('Dave exports temp_view (export rule now active)',
     ), TRUE);
 
 -- ---------------------------------------------------------------------------
--- Section 7: Temporal prohibition — expired prohibition no longer blocks
+-- Section 7: Temporal prohibition - expired prohibition no longer blocks
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 7. Expired prohibition no longer blocks ---'
@@ -295,7 +295,7 @@ SELECT morbac.t('Carol (manager) approves temp_view [temporal rule, active]',
         'approve', 'temp_view'
     ), TRUE);
 
--- Alice (CEO) inherits from manager — should also get the temporal permission
+-- Alice (CEO) inherits from manager - should also get the temporal permission
 SELECT morbac.t('Alice (CEO, inherits manager) approves temp_view [temporal rule, active]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000001'::uuid,

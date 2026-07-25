@@ -19,7 +19,7 @@
 
 \echo ''
 \echo '================================================================'
-\echo '07 — AUDIT LOGGING'
+\echo '07 - AUDIT LOGGING'
 \echo '================================================================'
 
 -- Clear any existing audit log entries to start fresh
@@ -160,7 +160,7 @@ DELETE FROM morbac.rules WHERE id = 'a0000000-0000-0000-0000-000000000001';
 \echo ''
 \echo '--- 5. Query audit log by record_id ---'
 
--- The test rule had INSERT, UPDATE, DELETE — should be 3 entries
+-- The test rule had INSERT, UPDATE, DELETE - should be 3 entries
 SELECT morbac.t_eq('Audit log has 3 entries for test rule record (INSERT + UPDATE + DELETE)',
     (SELECT COUNT(*) FROM morbac.audit_log
      WHERE table_name = 'rules'
@@ -245,7 +245,7 @@ BEGIN
 END;
 $$;
 
--- Perform another user_roles change — should NOT be logged
+-- Perform another user_roles change - should NOT be logged
 INSERT INTO morbac.user_roles (user_id, role_id, org_id)
 VALUES (
     '30000000-0000-0000-0000-000000000011',

@@ -19,7 +19,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM morbac.activity_view_bindings WHERE activity = NEW.activity)
        AND NOT EXISTS (SELECT 1 FROM morbac.activity_view_bindings WHERE activity = NEW.activity AND view = NEW.view)
     THEN
-        RAISE EXCEPTION 'Activity "%" is not allowed on view "%" — add a binding to morbac.activity_view_bindings to permit it',
+        RAISE EXCEPTION 'Activity "%" is not allowed on view "%" - add a binding to morbac.activity_view_bindings to permit it',
             NEW.activity, NEW.view;
     END IF;
     RETURN NEW;

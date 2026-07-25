@@ -2,10 +2,10 @@
 -- Constraint Tests
 -- =============================================================================
 -- Tests business constraints:
---   1. Separation of Duty (SoD) — mutually exclusive roles
---   2. Negative role assignments — explicit blocking of a role
---   3. Role cardinality constraints — min/max users per role
---   4. Rule conflict detection — modality conflicts on same tuple
+--   1. Separation of Duty (SoD) - mutually exclusive roles
+--   2. Negative role assignments - explicit blocking of a role
+--   3. Role cardinality constraints - min/max users per role
+--   4. Rule conflict detection - modality conflicts on same tuple
 --
 -- Scenario:
 --   - auditor and accountant are mutually exclusive (no one can hold both)
@@ -19,11 +19,11 @@
 
 \echo ''
 \echo '================================================================'
-\echo '04 — CONSTRAINTS'
+\echo '04 - CONSTRAINTS'
 \echo '================================================================'
 
 -- ---------------------------------------------------------------------------
--- Section 1: Separation of Duty — define conflict
+-- Section 1: Separation of Duty - define conflict
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 1. Separation of Duty setup ---'
@@ -49,7 +49,7 @@ SELECT morbac.t_eq('SoD conflict between auditor and accountant created',
 \echo ''
 \echo '--- 2. SoD violation detection ---'
 
--- Heidi (auditor) — check if assigning accountant role would violate SoD
+-- Heidi (auditor) - check if assigning accountant role would violate SoD
 SELECT morbac.t('Assigning accountant to Heidi (auditor) violates SoD',
     morbac.check_sod_violation(
         '30000000-0000-0000-0000-000000000008'::uuid,  -- Heidi
@@ -57,7 +57,7 @@ SELECT morbac.t('Assigning accountant to Heidi (auditor) violates SoD',
         '10000000-0000-0000-0000-000000000001'::uuid
     ), TRUE);
 
--- Ivan (accountant) — check if assigning auditor role would violate SoD
+-- Ivan (accountant) - check if assigning auditor role would violate SoD
 SELECT morbac.t('Assigning auditor to Ivan (accountant) violates SoD [symmetric]',
     morbac.check_sod_violation(
         '30000000-0000-0000-0000-000000000009'::uuid,  -- Ivan
@@ -65,8 +65,8 @@ SELECT morbac.t('Assigning auditor to Ivan (accountant) violates SoD [symmetric]
         '10000000-0000-0000-0000-000000000001'::uuid
     ), TRUE);
 
--- Dave (employee) — check if assigning accountant would violate SoD
--- Dave is not an auditor — no conflict
+-- Dave (employee) - check if assigning accountant would violate SoD
+-- Dave is not an auditor - no conflict
 SELECT morbac.t('Assigning accountant to Dave (not an auditor) does not violate SoD',
     morbac.check_sod_violation(
         '30000000-0000-0000-0000-000000000004'::uuid,  -- Dave
@@ -74,7 +74,7 @@ SELECT morbac.t('Assigning accountant to Dave (not an auditor) does not violate 
         '10000000-0000-0000-0000-000000000001'::uuid
     ), FALSE);
 
--- Heidi (auditor) — assigning a non-conflicting role (manager) is fine
+-- Heidi (auditor) - assigning a non-conflicting role (manager) is fine
 SELECT morbac.t('Assigning manager to Heidi (auditor) does not violate SoD',
     morbac.check_sod_violation(
         '30000000-0000-0000-0000-000000000008'::uuid,  -- Heidi
@@ -126,7 +126,7 @@ VALUES (
     'Frank is a contractor and must not gain employee-level access'
 );
 
--- Frank's employee role is negated — verify via get_comprehensive_roles
+-- Frank's employee role is negated - verify via get_comprehensive_roles
 -- employee role must not appear (negated by negative assignment)
 SELECT morbac.t('Frank: employee role excluded by negative assignment',
     NOT EXISTS(
@@ -148,7 +148,7 @@ SELECT morbac.t('Frank: contractor role still present after employee negated',
     ), TRUE);
 
 -- Negative assignment on a role the user never had is harmless
--- Karl has no role — adding negative assignment for manager is a no-op
+-- Karl has no role - adding negative assignment for manager is a no-op
 INSERT INTO morbac.negative_role_assignments (user_id, role_id, org_id, reason)
 VALUES (
     '30000000-0000-0000-0000-000000000011', -- Karl
@@ -181,7 +181,7 @@ WHERE user_id = '30000000-0000-0000-0000-000000000006'
 \echo ''
 \echo '--- 4. Role cardinality constraints ---'
 
--- Set a cardinality constraint: compliance_officer role — min 1, max 2
+-- Set a cardinality constraint: compliance_officer role - min 1, max 2
 INSERT INTO morbac.role_cardinality (role_id, min_users, max_users, description)
 VALUES (
     '20000000-0001-0000-0000-000000000010', -- compliance_officer
@@ -189,8 +189,8 @@ VALUES (
     'Compliance officer role: at least 1, at most 2'
 );
 
--- Currently 0 users have compliance_officer — adding one should be fine (0 < max=2)
-SELECT morbac.t_null('Adding first compliance_officer (0 users, max=2) — no violation',
+-- Currently 0 users have compliance_officer - adding one should be fine (0 < max=2)
+SELECT morbac.t_null('Adding first compliance_officer (0 users, max=2) - no violation',
     morbac.check_cardinality_violation(
         '20000000-0001-0000-0000-000000000010'::uuid,
         TRUE  -- adding
@@ -201,15 +201,15 @@ INSERT INTO morbac.user_roles (user_id, role_id, org_id) VALUES
     ('30000000-0000-0000-0000-000000000004', '20000000-0001-0000-0000-000000000010', '10000000-0000-0000-0000-000000000001'),
     ('30000000-0000-0000-0000-000000000005', '20000000-0001-0000-0000-000000000010', '10000000-0000-0000-0000-000000000001');
 
--- Now 2 users — at max. Trying to add a 3rd should violate
-SELECT morbac.t_not_null('Adding 3rd compliance_officer (2 users, max=2) — violation returned',
+-- Now 2 users - at max. Trying to add a 3rd should violate
+SELECT morbac.t_not_null('Adding 3rd compliance_officer (2 users, max=2) - violation returned',
     morbac.check_cardinality_violation(
         '20000000-0001-0000-0000-000000000010'::uuid,
         TRUE  -- adding
     ));
 
--- Removing one — 2 users, min=1 — removing leaves 1 which is ≥ min=1, should be fine
-SELECT morbac.t_null('Removing from 2 compliance_officers (min=1) — no violation (still above min)',
+-- Removing one - 2 users, min=1 - removing leaves 1 which is >= min=1, should be fine
+SELECT morbac.t_null('Removing from 2 compliance_officers (min=1) - no violation (still above min)',
     morbac.check_cardinality_violation(
         '20000000-0001-0000-0000-000000000010'::uuid,
         FALSE  -- removing
@@ -221,21 +221,21 @@ WHERE user_id = '30000000-0000-0000-0000-000000000005'
   AND role_id = '20000000-0001-0000-0000-000000000010';
 
 -- 1 user remaining = min. Removing the last one would violate min=1
-SELECT morbac.t_not_null('Removing last compliance_officer (1 user, min=1) — violation returned',
+SELECT morbac.t_not_null('Removing last compliance_officer (1 user, min=1) - violation returned',
     morbac.check_cardinality_violation(
         '20000000-0001-0000-0000-000000000010'::uuid,
         FALSE  -- removing
     ));
 
--- Adding again after being at 1 — 1 user, max=2 — ok
-SELECT morbac.t_null('Adding when at 1 compliance_officer (max=2) — no violation',
+-- Adding again after being at 1 - 1 user, max=2 - ok
+SELECT morbac.t_null('Adding when at 1 compliance_officer (max=2) - no violation',
     morbac.check_cardinality_violation(
         '20000000-0001-0000-0000-000000000010'::uuid,
         TRUE  -- adding
     ));
 
--- Role with no cardinality constraint — no violation for any operation
-SELECT morbac.t_null('Checking cardinality for employee role (no constraint) — no violation',
+-- Role with no cardinality constraint - no violation for any operation
+SELECT morbac.t_null('Checking cardinality for employee role (no constraint) - no violation',
     morbac.check_cardinality_violation(
         '20000000-0001-0000-0000-000000000004'::uuid, -- employee
         TRUE
@@ -263,8 +263,8 @@ VALUES (
     'permission'
 );
 
--- No conflict yet — only a permission exists
-SELECT morbac.t_eq('detect_rule_conflicts: permission alone — no conflicts',
+-- No conflict yet - only a permission exists
+SELECT morbac.t_eq('detect_rule_conflicts: permission alone - no conflicts',
     (SELECT COUNT(*) FROM morbac.detect_rule_conflicts(
         '10000000-0000-0000-0000-000000000001',
         '20000000-0001-0000-0000-000000000004',
@@ -309,7 +309,7 @@ SELECT morbac.t('detect_rule_conflicts: conflicting rule is the permission',
         WHERE conflicting_modality = 'permission'
     ), TRUE);
 
--- Insert an obligation for the same tuple — conflicts with the prohibition
+-- Insert an obligation for the same tuple - conflicts with the prohibition
 INSERT INTO morbac.rules (id, org_id, role_id, activity, view, context_id, modality)
 VALUES (
     'f0000000-0000-0000-0000-000000000003',
@@ -331,7 +331,7 @@ SELECT morbac.t_eq('detect_rule_conflicts: obligation conflicts with existing pr
     ))::bigint,
     1);
 
--- Insert a recommendation — conflicts with both obligation and prohibition
+-- Insert a recommendation - conflicts with both obligation and prohibition
 INSERT INTO morbac.rules (id, org_id, role_id, activity, view, context_id, modality)
 VALUES (
     'f0000000-0000-0000-0000-000000000004',
@@ -354,7 +354,7 @@ SELECT morbac.t_eq('detect_rule_conflicts: recommendation conflicts with prohibi
     2);
 
 -- No conflict between permission and recommendation (they coexist meaningfully)
-SELECT morbac.t_eq('detect_rule_conflicts: permission vs recommendation — no conflict',
+SELECT morbac.t_eq('detect_rule_conflicts: permission vs recommendation - no conflict',
     (SELECT COUNT(*) FROM morbac.detect_rule_conflicts(
         '10000000-0000-0000-0000-000000000001',
         '20000000-0001-0000-0000-000000000004',

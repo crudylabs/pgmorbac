@@ -24,7 +24,7 @@ COMMENT ON TABLE morbac.view_hierarchy IS 'View hierarchy - senior views inherit
 COMMENT ON COLUMN morbac.view_hierarchy.senior_view IS 'Senior view (more specific)';
 COMMENT ON COLUMN morbac.view_hierarchy.junior_view IS 'Junior view (more general)';
 
--- Default system view names — match system_view.* config keys.
+-- Default system view names - match system_view.* config keys.
 -- Override config values to rename; the new name must be seeded here too.
 INSERT INTO morbac.views (name, description) VALUES
     ('orgs',              'Organizations table'),

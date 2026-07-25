@@ -3,18 +3,18 @@
 -- =============================================================================
 -- Tests rules.scope and cross_org_rules.source_org_id = NULL:
 --
---   1. scope='self' (default) — exact org only, unchanged behavior
---   2. scope='subtree' — rule at root covers self + Engineering + Sales
---   3. scope='descendants' — covers Engineering + Sales but NOT GlobalTech itself
---   4. scope='children' — covers direct children only
---   5. New org added after rule creation — picked up automatically (cache invalidation)
+--   1. scope='self' (default) - exact org only, unchanged behavior
+--   2. scope='subtree' - rule at root covers self + Engineering + Sales
+--   3. scope='descendants' - covers Engineering + Sales but NOT GlobalTech itself
+--   4. scope='children' - covers direct children only
+--   5. New org added after rule creation - picked up automatically (cache invalidation)
 --
 -- Prerequisites: 00_setup.sql -> 10_activity_view_bindings.sql
 -- =============================================================================
 
 \echo ''
 \echo '================================================================'
-\echo '11 — SCOPE RULES AND GLOBAL CROSS-ORG RULES'
+\echo '11 - SCOPE RULES AND GLOBAL CROSS-ORG RULES'
 \echo '================================================================'
 
 -- Setup: create a dedicated role for scope tests (avoid polluting existing rules)
@@ -23,7 +23,7 @@ VALUES (
     '20000000-0001-0000-0000-000000000012',
     '10000000-0000-0000-0000-000000000001',
     'analyst',
-    'Data analyst — scope tests'
+    'Data analyst - scope tests'
 );
 
 -- Assign Karl (previously no role) as analyst at GlobalTech
@@ -35,7 +35,7 @@ VALUES (
 );
 
 -- ---------------------------------------------------------------------------
--- Section 1: scope='self' (default) — exact org only
+-- Section 1: scope='self' (default) - exact org only
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 1. scope=self (default) ---'
@@ -67,7 +67,7 @@ SELECT morbac.t('Karl (analyst, scope=self) reads reports in Engineering [denied
 DELETE FROM morbac.rules WHERE id = 'c0000000-0000-0000-0000-000000000001';
 
 -- ---------------------------------------------------------------------------
--- Section 2: scope='subtree' — root + all descendants
+-- Section 2: scope='subtree' - root + all descendants
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 2. scope=subtree ---'
@@ -106,7 +106,7 @@ SELECT morbac.t('Karl (analyst, scope=subtree) reads reports in Sales [allowed]'
 DELETE FROM morbac.rules WHERE id = 'c0000000-0000-0000-0000-000000000002';
 
 -- ---------------------------------------------------------------------------
--- Section 3: scope='descendants' — children only, NOT self
+-- Section 3: scope='descendants' - children only, NOT self
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 3. scope=descendants ---'
@@ -145,7 +145,7 @@ SELECT morbac.t('Karl (analyst, scope=descendants) reads reports in Sales [allow
 DELETE FROM morbac.rules WHERE id = 'c0000000-0000-0000-0000-000000000003';
 
 -- ---------------------------------------------------------------------------
--- Section 4: scope='children' — direct children only
+-- Section 4: scope='children' - direct children only
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 4. scope=children ---'
@@ -193,7 +193,7 @@ DELETE FROM morbac.rules WHERE id = 'c0000000-0000-0000-0000-000000000004';
 DELETE FROM morbac.orgs WHERE id = '10000000-0000-0000-0000-000000000004';
 
 -- ---------------------------------------------------------------------------
--- Section 5: New org added after rule creation — scope picks it up automatically
+-- Section 5: New org added after rule creation - scope picks it up automatically
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 5. Dynamic scope: new org covered automatically ---'
@@ -225,7 +225,7 @@ VALUES (
     '10000000-0000-0000-0000-000000000001'
 );
 
--- The scoped rule was defined before Legal Dept existed — still covers it
+-- The scoped rule was defined before Legal Dept existed - still covers it
 SELECT morbac.t('Karl (analyst) reads documents in Legal Dept [new org, covered by subtree scope]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000011'::uuid,

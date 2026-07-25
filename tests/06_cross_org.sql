@@ -22,7 +22,7 @@
 
 \echo ''
 \echo '================================================================'
-\echo '06 — CROSS-ORGANIZATIONAL RULES'
+\echo '06 - CROSS-ORGANIZATIONAL RULES'
 \echo '================================================================'
 
 -- ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ SELECT morbac.t('Nina has eng_auditor role at Engineering',
     ), TRUE);
 
 -- ---------------------------------------------------------------------------
--- Section 1: No cross-org rule — access between orgs is denied by default
+-- Section 1: No cross-org rule - access between orgs is denied by default
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 1. No cross-org rule: access denied by default ---'
@@ -75,7 +75,7 @@ SELECT morbac.t('Judy (Engineering engineer) reads GlobalTech financial_data [no
     ), FALSE);
 
 -- ---------------------------------------------------------------------------
--- Section 2: Cross-org permission — Sales sales_rep reads GlobalTech reports
+-- Section 2: Cross-org permission - Sales sales_rep reads GlobalTech reports
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 2. Cross-org permission ---'
@@ -123,7 +123,7 @@ SELECT morbac.t('Judy (Sales sales_rep) reads GlobalTech documents [no rule for 
 \echo ''
 \echo '--- 3. Role must be held in source org ---'
 
--- Karl has no role anywhere — cannot use the Sales->GlobalTech cross-org rule
+-- Karl has no role anywhere - cannot use the Sales->GlobalTech cross-org rule
 SELECT morbac.t('Karl (no role) reads GlobalTech reports via cross-org rule [no role in source]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000011'::uuid,
@@ -140,7 +140,7 @@ SELECT morbac.t('Karl (no role) reads GlobalTech documents [no access anywhere]'
     ), FALSE);
 
 -- ---------------------------------------------------------------------------
--- Section 4: Cross-org prohibition — blocks access even with regular permission
+-- Section 4: Cross-org prohibition - blocks access even with regular permission
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 4. Cross-org prohibition ---'

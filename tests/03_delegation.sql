@@ -20,11 +20,11 @@
 
 \echo ''
 \echo '================================================================'
-\echo '03 — DELEGATION'
+\echo '03 - DELEGATION'
 \echo '================================================================'
 
 -- ---------------------------------------------------------------------------
--- Section 1: Baseline — Leo (employee) before any delegation
+-- Section 1: Baseline - Leo (employee) before any delegation
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 1. Baseline: Leo before delegation ---'
@@ -37,7 +37,7 @@ SELECT morbac.t('Leo (employee) reads documents before delegation',
         'read', 'documents'
     ), TRUE);
 
--- Leo cannot approve documents — that requires manager role
+-- Leo cannot approve documents - that requires manager role
 SELECT morbac.t('Leo (employee) approves documents before delegation [no manager perm]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000012'::uuid,
@@ -66,7 +66,7 @@ SELECT morbac.t('Leo (employee) does not have approve permission before delegati
     ), FALSE);
 
 -- ---------------------------------------------------------------------------
--- Section 2: Active delegation — Carol delegates manager role to Leo
+-- Section 2: Active delegation - Carol delegates manager role to Leo
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 2. Active delegation: Carol -> Leo (manager role, 1 day) ---'
@@ -83,7 +83,7 @@ VALUES (
     now() + interval '1 day'
 );
 
--- Leo now has delegated manager role — can approve documents
+-- Leo now has delegated manager role - can approve documents
 SELECT morbac.t('Leo (delegated manager) approves documents',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000012'::uuid,
@@ -217,7 +217,7 @@ VALUES (
     TRUE  -- revoked
 );
 
--- Dave should NOT get accountant from revoked delegation — verify revoked flag is set
+-- Dave should NOT get accountant from revoked delegation - verify revoked flag is set
 -- Note: employee already has write financial_data via view hierarchy;
 -- so we verify the delegation is actually revoked in the DB.
 SELECT morbac.t('Revoked accountant delegation has revoked=TRUE in DB',
@@ -296,7 +296,7 @@ INSERT INTO morbac.delegations
     (id, delegator_id, delegatee_id, role_id, org_id, valid_from, valid_until)
 VALUES (
     'de000001-0000-0000-0000-000000000005',
-    '30000000-0000-0000-0000-000000000004', -- Dave (employee — does NOT hold manager)
+    '30000000-0000-0000-0000-000000000004', -- Dave (employee - does NOT hold manager)
     '30000000-0000-0000-0000-000000000005', -- Eve
     '20000000-0001-0000-0000-000000000003', -- manager role
     '10000000-0000-0000-0000-000000000001',
@@ -330,7 +330,7 @@ SELECT morbac.t('Invalid delegation not in Eve comprehensive roles',
 \echo ''
 \echo '--- 8. get_comprehensive_roles source reporting ---'
 
--- Alice (CEO, direct) — source should be 'direct'
+-- Alice (CEO, direct) - source should be 'direct'
 SELECT morbac.t('Alice CEO role has source=direct in comprehensive roles',
     EXISTS(
         SELECT 1 FROM morbac.get_comprehensive_roles(

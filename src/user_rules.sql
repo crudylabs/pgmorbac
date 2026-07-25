@@ -34,7 +34,7 @@ CREATE INDEX idx_user_rules_activity_view ON morbac.user_rules(activity, view);
 CREATE INDEX idx_user_rules_modality ON morbac.user_rules(modality);
 CREATE INDEX idx_user_rules_lookup ON morbac.user_rules(user_id, org_id, activity, modality, view);
 
-COMMENT ON TABLE morbac.user_rules IS 'Direct user-level rules — grant or prohibit access for a specific user, bypassing the role system';
+COMMENT ON TABLE morbac.user_rules IS 'Direct user-level rules - grant or prohibit access for a specific user, bypassing the role system';
 COMMENT ON COLUMN morbac.user_rules.user_id IS 'User this rule applies to directly';
 COMMENT ON COLUMN morbac.user_rules.org_id IS 'Org where the resource resides; NULL targets unattributed (no-org) objects';
 COMMENT ON COLUMN morbac.user_rules.modality IS 'Deontic modality: permission, prohibition, obligation, recommendation';

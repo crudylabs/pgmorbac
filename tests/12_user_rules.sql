@@ -17,11 +17,11 @@
 
 \echo ''
 \echo '================================================================'
-\echo '12 — USER RULES'
+\echo '12 - USER RULES'
 \echo '================================================================'
 
 -- ---------------------------------------------------------------------------
--- Section 1: No user rule — Karl (no role) is denied
+-- Section 1: No user rule - Karl (no role) is denied
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 1. No user rule: access denied ---'
@@ -41,7 +41,7 @@ SELECT morbac.t('Karl (no role) reads GlobalTech financial_data [no user rule]',
     ), FALSE);
 
 -- ---------------------------------------------------------------------------
--- Section 2: Direct user permission — Karl gets access without a role
+-- Section 2: Direct user permission - Karl gets access without a role
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 2. Direct user permission ---'
@@ -78,7 +78,7 @@ SELECT morbac.t('Karl reads GlobalTech financial_data [documents rule covers it 
         'read', 'financial_data'
     ), TRUE);
 
--- contracts has no hierarchy relationship — documents rule does not cover it
+-- contracts has no hierarchy relationship - documents rule does not cover it
 SELECT morbac.t('Karl reads GlobalTech contracts [no user rule, no hierarchy coverage]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000011'::uuid,
@@ -141,7 +141,7 @@ SELECT morbac.t('Eve (intern) reads GlobalTech public_data [user prohibition blo
         'read', 'public_data'
     ), FALSE);
 
--- Dave (employee) is unaffected — only Eve has the prohibition
+-- Dave (employee) is unaffected - only Eve has the prohibition
 SELECT morbac.t('Dave (employee) reads GlobalTech public_data [no user prohibition]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -150,7 +150,7 @@ SELECT morbac.t('Dave (employee) reads GlobalTech public_data [no user prohibiti
     ), TRUE);
 
 -- ---------------------------------------------------------------------------
--- Section 5: Priority — higher-priority user permission overrides prohibition
+-- Section 5: Priority - higher-priority user permission overrides prohibition
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 5. Priority: user permission overrides user prohibition ---'
@@ -236,7 +236,7 @@ SELECT morbac.t('rls_check passes without target_user_id filter',
         '30000000-0000-0000-0000-000000000004'::uuid
     ), TRUE);
 
--- Set target_user_id to Dave — rows belonging to Dave pass
+-- Set target_user_id to Dave - rows belonging to Dave pass
 SET morbac.target_user_id = '30000000-0000-0000-0000-000000000004';
 
 SELECT morbac.t('rls_check passes when row user_id matches target_user_id',
@@ -254,7 +254,7 @@ SELECT morbac.t('rls_check blocked when row user_id differs from target_user_id'
         '30000000-0000-0000-0000-000000000001'::uuid
     ), FALSE);
 
--- No p_row_user_id passed — user filter does not apply
+-- No p_row_user_id passed - user filter does not apply
 SELECT morbac.t('rls_check passes when no row user_id passed (filter skipped)',
     morbac.rls_check(
         'read', 'documents',

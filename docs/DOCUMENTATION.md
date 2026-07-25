@@ -123,7 +123,7 @@ erDiagram
 
 **morbac.contexts**: Contextual conditions as callable predicates. Column `evaluator` (REGPROC) references a function returning BOOLEAN (preferably STABLE). Built-in context `always` returns true.
 
-**morbac.rules**: Core rules linking org, role, activity, view, context, modality, and scope. The `scope` column (default `'self'`) controls which orgs the rule covers relative to `org_id` — evaluated at query time so new child orgs are picked up automatically without re-inserting rules.
+**morbac.rules**: Core rules linking org, role, activity, view, context, modality, and scope. The `scope` column (default `'self'`) controls which orgs the rule covers relative to `org_id` - evaluated at query time so new child orgs are picked up automatically without re-inserting rules.
 
 
 ### Advanced Feature Tables
@@ -198,7 +198,7 @@ Inter-organizational access rules.
 
 **morbac.system_principals**
 
-Registry of backend service accounts. Registered user UUIDs are protected at the trigger level — no role assignment, rule, delegation, or prohibition can target them. Their permission rules in `global_rules` are equally immutable.
+Registry of backend service accounts. Registered user UUIDs are protected at the trigger level - no role assignment, rule, delegation, or prohibition can target them. Their permission rules in `global_rules` are equally immutable.
 
 **Key columns:**
 - `user_id`: UUID of the service account
@@ -218,7 +218,7 @@ System-wide rules with no org or role binding.
 - `modality`: Permission or prohibition
 - `priority`: Optional; same resolution semantics as `morbac.rules`
 
-**Behavior:** Evaluated at steps 3.5 (prohibitions) and 6.5 (permissions) in `is_allowed_nocache()`. NULL on `activity` or `view` matches any value — no hierarchy setup required for broad rules.
+**Behavior:** Evaluated at steps 3.5 (prohibitions) and 6.5 (permissions) in `is_allowed_nocache()`. NULL on `activity` or `view` matches any value - no hierarchy setup required for broad rules.
 
 **morbac.activity_view_bindings**
 
@@ -373,7 +373,7 @@ JOIN morbac.contexts c ON c.name = v.context_name;
 
 ### Organization Rule Scope
 
-Every rule has a `scope` column (default `'self'`) that controls which organizations the rule covers relative to its `org_id`. Scope is **evaluated at query time** — adding a new child org to the hierarchy is enough for it to be covered by existing scoped rules. No rule re-creation needed.
+Every rule has a `scope` column (default `'self'`) that controls which organizations the rule covers relative to its `org_id`. Scope is **evaluated at query time** - adding a new child org to the hierarchy is enough for it to be covered by existing scoped rules. No rule re-creation needed.
 
 | Scope | Covers |
 |---|---|
@@ -414,11 +414,11 @@ WHERE o.name = 'EMEA Region';
 
 **Cache behavior:** The auth cache is fully invalidated whenever the org tree changes (`INSERT`/`UPDATE`/`DELETE` on `morbac.orgs`), so scoped rules are always consistent.
 
-**`get_org_scope(org_id, scope, max_depth?)`** is the underlying helper — it returns `(org_id, depth)` rows and can be used directly when you need to iterate over an org set. An optional `p_max_depth` limits traversal depth.
+**`get_org_scope(org_id, scope, max_depth?)`** is the underlying helper - it returns `(org_id, depth)` rows and can be used directly when you need to iterate over an org set. An optional `p_max_depth` limits traversal depth.
 
 ### Unattributed (no-org) Objects
 
-An object whose `org_id` is `NULL` is **unattributed**: it belongs to no organization, typically because it is awaiting attribution. This is the only meaning `NULL` carries in the org dimension — it never means "any org" and never means "all orgs".
+An object whose `org_id` is `NULL` is **unattributed**: it belongs to no organization, typically because it is awaiting attribution. This is the only meaning `NULL` carries in the org dimension - it never means "any org" and never means "all orgs".
 
 #### The org target vocabulary
 
@@ -426,15 +426,15 @@ Every rule kind selects its target the same way. There are exactly three targets
 
 | Target | Role-based (`morbac.rules`) | User-level (roleless) |
 |---|---|---|
-| A specific organization | `scope` = `'self'`, `'subtree'`, … | `user_rules` with an `org_id` |
+| A specific organization | `scope` = `'self'`, `'subtree'`, ... | `user_rules` with an `org_id` |
 | Unattributed objects | `scope` = `'unattributed'` | `user_rules` with `org_id = NULL` |
 | All orgs (unattributed included) | `scope` = `'all'` | `global_rules` |
 
-The two object classes are **partitioned**: an `'unattributed'` rule can never reach an object that has an org, and the tree scopes (`'self'`, `'subtree'`, …) can never reach an unattributed object. Only `'all'` and `global_rules` deliberately span both.
+The two object classes are **partitioned**: an `'unattributed'` rule can never reach an object that has an org, and the tree scopes (`'self'`, `'subtree'`, ...) can never reach an unattributed object. Only `'all'` and `global_rules` deliberately span both.
 
 #### Granting a role access to unattributed objects
 
-The declaring org is the policy authority; the role must be held **in that org**. Grant, revoke, and delegate the role exactly as usual — access to the unattributed pool follows.
+The declaring org is the policy authority; the role must be held **in that org**. Grant, revoke, and delegate the role exactly as usual - access to the unattributed pool follows.
 
 ```sql
 INSERT INTO morbac.rules (org_id, role_id, activity, view, context_id, modality, scope)
@@ -445,7 +445,7 @@ JOIN morbac.contexts c ON c.name = 'always'
 WHERE o.name = 'Acme Corp';
 ```
 
-Several organizations may each declare their own policy over the same unattributed pool — that is ordinary Multi-OrBAC: independent authorities over a shared object space.
+Several organizations may each declare their own policy over the same unattributed pool - that is ordinary Multi-OrBAC: independent authorities over a shared object space.
 
 Prohibitions, priorities, contexts, temporal validity, role hierarchy, delegation, derived roles, negative assignments and SoD all apply unchanged:
 
@@ -463,7 +463,7 @@ Granting a single user access without a role uses `user_rules` with no org:
 
 ```sql
 INSERT INTO morbac.user_rules (user_id, org_id, activity, view, context_id, modality)
-SELECT '…user…'::uuid, NULL, 'read', 'documents', c.id, 'permission'
+SELECT '...user...'::uuid, NULL, 'read', 'documents', c.id, 'permission'
 FROM morbac.contexts c WHERE c.name = 'always';
 ```
 
@@ -492,9 +492,9 @@ Which records come back is chosen with the session variables. A JSON `null` elem
 
 | Session | Returns |
 |---|---|
-| *(nothing set)* | all authorized records — every org **and** unattributed |
-| `morbac.org_id = '<uuid>'` | that org only — unattributed excluded |
-| `morbac.org_ids = '["<uuid>"]'` | those orgs only — unattributed excluded |
+| *(nothing set)* | all authorized records - every org **and** unattributed |
+| `morbac.org_id = '<uuid>'` | that org only - unattributed excluded |
+| `morbac.org_ids = '["<uuid>"]'` | those orgs only - unattributed excluded |
 | `morbac.org_ids = '[null]'` | **unattributed only** (the attribution queue) |
 | `morbac.org_ids = '["<uuid>", null]'` | that org **plus** unattributed |
 
@@ -508,7 +508,7 @@ SELECT * FROM app.documents;
 
 #### Capability probe for UI gating
 
-To decide whether to show a feature at all — rather than authorize a specific object — use:
+To decide whether to show a feature at all - rather than authorize a specific object - use:
 
 ```sql
 SELECT morbac.has_permission(user_id, 'read', 'documents');
@@ -683,7 +683,7 @@ INSERT INTO morbac.cross_org_rules (
 SELECT morbac.is_allowed(auditor_id, subsidiary_id, 'read', 'financials'); -- TRUE
 ```
 
-**Scope vs. cross-org rules — when to use which:**
+**Scope vs. cross-org rules - when to use which:**
 
 | Need | Use |
 |---|---|
@@ -692,7 +692,7 @@ SELECT morbac.is_allowed(auditor_id, subsidiary_id, 'read', 'financials'); -- TR
 
 ### Global Rules
 
-Global rules apply system-wide — no org or role required. Use them to define blanket access policies that cut across the entire org hierarchy.
+Global rules apply system-wide - no org or role required. Use them to define blanket access policies that cut across the entire org hierarchy.
 
 **Table:** `morbac.global_rules`
 
@@ -736,7 +736,7 @@ Priority 100 ensures this prohibition overrides any role-based permission. To ex
 
 ### System Principals
 
-Backend service accounts that must be fully immutable at the database level — no policy, no admin, no superadmin can touch them once registered.
+Backend service accounts that must be fully immutable at the database level - no policy, no admin, no superadmin can touch them once registered.
 
 **Table:** `morbac.system_principals`
 
@@ -745,7 +745,7 @@ Backend service accounts that must be fully immutable at the database level — 
 | `user_id` | UUID of the service account (external, from your auth system) |
 | `description` | Human-readable label |
 
-**What is protected (trigger level — fires for all users including superusers):**
+**What is protected (trigger level - fires for all users including superusers):**
 
 | Table | Blocked operations |
 |---|---|
@@ -755,9 +755,9 @@ Backend service accounts that must be fully immutable at the database level — 
 | `delegations` | INSERT, UPDATE involving the principal |
 | `global_rules` | All operations where `user_id` matches a system principal |
 
-**Authorization behavior:** Prohibition evaluation (steps 1–3.5) is skipped entirely for system principals. Even a blanket `user_id=NULL` global prohibition does not affect them. Only their permission rules matter.
+**Authorization behavior:** Prohibition evaluation (steps 1-3.5) is skipped entirely for system principals. Even a blanket `user_id=NULL` global prohibition does not affect them. Only their permission rules matter.
 
-**Ruleset:** Define permissions for system principals via `global_rules` at deploy time. Those rows are immutable once inserted — no one can modify or delete them. Use `activity=NULL, view=NULL` to grant full access, or restrict to specific activities/views:
+**Ruleset:** Define permissions for system principals via `global_rules` at deploy time. Those rows are immutable once inserted - no one can modify or delete them. Use `activity=NULL, view=NULL` to grant full access, or restrict to specific activities/views:
 
 ```sql
 -- Register the service account (DB owner only)
@@ -775,23 +775,23 @@ VALUES (:service_uuid, 'read', NULL,
     (SELECT id FROM morbac.contexts WHERE name = 'always'), 'permission');
 ```
 
-**Access control on the registry itself:** `morbac.system_principals` has a SELECT-only RLS policy — a user needs `is_allowed(..., 'read', 'system_principals')` to list them. INSERT/UPDATE/DELETE have no RLS policy, so they are blocked for all non-superusers automatically. Only the database owner can register or remove system principals.
+**Access control on the registry itself:** `morbac.system_principals` has a SELECT-only RLS policy - a user needs `is_allowed(..., 'read', 'system_principals')` to list them. INSERT/UPDATE/DELETE have no RLS policy, so they are blocked for all non-superusers automatically. Only the database owner can register or remove system principals.
 
 ### Administration
 
-Admin operations use the same `is_allowed()` engine as everything else — no separate code path.
+Admin operations use the same `is_allowed()` engine as everything else - no separate code path.
 
 **System table RLS**
 
 `morbac.*` tables have RLS policies. `is_allowed()` and all its internal callees are `SECURITY DEFINER`, running as the extension owner and bypassing RLS. This breaks the recursion: RLS policies call `is_allowed()`, which queries morbac tables without re-triggering the policies.
 
-The database owner (superuser) bypasses RLS by default — use that privilege only during bootstrap.
+The database owner (superuser) bypasses RLS by default - use that privilege only during bootstrap.
 
 **System view names**
 
 The extension seeds built-in activities (`create`, `read`, `update`, `delete`) and system view names (`orgs`, `roles`, `rules`, `user_roles`, `contexts`, `activities`, `views`, `delegations`, `cross_org_rules`, `user_rules`, `global_rules`, `system_principals`) at install time.
 
-These names are config-driven. Override with `morbac.set_config()` to use your own naming conventions — the new name must then exist in `morbac.views` and your rules must reference it:
+These names are config-driven. Override with `morbac.set_config()` to use your own naming conventions - the new name must then exist in `morbac.views` and your rules must reference it:
 
 ```sql
 -- Rename 'rules' to 'policies' in your system
@@ -953,7 +953,7 @@ WHERE table_name = 'rules'
 
 ### Authorization Functions
 
-**`is_allowed(user_id, org_id, activity, view)`**: Main authorization decision. Returns BOOLEAN. Evaluates local rules, cross-org rules, user rules, and global rules; defaults to deny. `org_id` is a specific organization, or `NULL` when the object is unattributed (no org) — `NULL` never means "any org". Cache writes are silently skipped in read-only transactions so this function is safe to call from both read-write and read-only contexts (e.g. PostgREST GET requests). Unattributed decisions are not cached.
+**`is_allowed(user_id, org_id, activity, view)`**: Main authorization decision. Returns BOOLEAN. Evaluates local rules, cross-org rules, user rules, and global rules; defaults to deny. `org_id` is a specific organization, or `NULL` when the object is unattributed (no org) - `NULL` never means "any org". Cache writes are silently skipped in read-only transactions so this function is safe to call from both read-write and read-only contexts (e.g. PostgREST GET requests). Unattributed decisions are not cached.
 
 ```sql
 SELECT morbac.is_allowed(user_uuid, org_uuid, 'read', 'documents');
@@ -976,7 +976,11 @@ SELECT morbac.has_permission(user_uuid, 'read', 'documents');
 
 **`get_org_descendants(org_id)`**: Returns all child organizations with depth (including self at depth 0).
 
-**`get_org_scope(org_id, scope, max_depth?)`**: Returns a named set of organizations relative to `org_id`. Scope values: `self`, `children`, `descendants`, `subtree`, `parent`, `ancestors`, `lineage`, `root`. Optional `max_depth` limits traversal depth.
+**`get_org_scope(org_id, scope, max_depth?)`**: Returns a named set of organizations relative to `org_id`. Scope values: `self`, `children`, `descendants`, `subtree`, `parent`, `ancestors`, `lineage`, `root`, plus `all` (every organization) and `unattributed` (no rows - an unattributed object has no org to return). Optional `max_depth` limits traversal depth.
+
+**`org_in_scope(target_org_id, rule_org_id, scope)`**: Returns TRUE when a rule declared at `rule_org_id` with `scope` covers `target_org_id`. A NULL target is covered only by `unattributed` and `all`; the tree scopes never match one.
+
+**`refresh_hierarchy_cache()`**: Rebuilds the materialized org, role, activity and view closures. Triggers call it whenever a hierarchy changes; call it manually after a bulk load.
 
 ```sql
 -- All orgs in the subtree, up to 2 levels deep
@@ -1006,6 +1010,8 @@ SELECT * FROM morbac.get_org_scope(org_uuid, 'subtree', 2);
 **`revoke_role(target_user_id, role_id, org_id)`**: Revokes a role with cardinality validation. Authorization is enforced by RLS on `morbac.user_roles`.
 
 **`eval_derived_role(evaluator, user_id, org_id)`**: Evaluate a derived role condition function (REGPROC). Returns BOOLEAN.
+
+**`is_rule_valid(valid_from, valid_until)`**: Returns TRUE when a validity window covers the current timestamp. Every store applies it before a rule can match.
 
 ### Context Functions
 
@@ -1083,10 +1089,10 @@ The row-scoped `rls_check` resolves which records to return from session variabl
 
 | Session variable | Behaviour |
 |---|---|
-| `morbac.org_id` set | that single org — unattributed excluded |
+| `morbac.org_id` set | that single org - unattributed excluded |
 | `morbac.org_ids` set | the listed orgs; a `null` element adds unattributed records |
 | `morbac.org_ids = '[null]'` | unattributed records only |
-| neither set | all authorized records — every org **and** unattributed |
+| neither set | all authorized records - every org **and** unattributed |
 
 #### Setting context from HTTP headers
 

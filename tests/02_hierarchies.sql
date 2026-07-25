@@ -2,10 +2,10 @@
 -- Hierarchy Tests
 -- =============================================================================
 -- Tests all four hierarchy types:
---   1. Role hierarchy — senior roles inherit permissions of junior roles (transitive)
---   2. Activity hierarchy — requesting a senior activity also matches junior-activity rules
---   3. View hierarchy — requesting a senior view also matches junior-view rules
---   4. Org hierarchy — get_org_ancestors / get_org_descendants traversal
+--   1. Role hierarchy - senior roles inherit permissions of junior roles (transitive)
+--   2. Activity hierarchy - requesting a senior activity also matches junior-activity rules
+--   3. View hierarchy - requesting a senior view also matches junior-view rules
+--   4. Org hierarchy - get_org_ancestors / get_org_descendants traversal
 --
 -- Hierarchy semantics in this system:
 --   Activity: (senior='write', junior='read') means get_effective_activities('write')
@@ -19,50 +19,50 @@
 
 \echo ''
 \echo '================================================================'
-\echo '02 — HIERARCHIES'
+\echo '02 - HIERARCHIES'
 \echo '================================================================'
 
 -- ---------------------------------------------------------------------------
--- Section 1: Role hierarchy — get_effective_roles and get_inherited_roles
+-- Section 1: Role hierarchy - get_effective_roles and get_inherited_roles
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 1. Role hierarchy introspection ---'
 
--- Eve (intern) direct assignment only — 1 effective role
+-- Eve (intern) direct assignment only - 1 effective role
 SELECT morbac.t_eq('Eve has 1 effective role (intern only)',
     (SELECT COUNT(*) FROM morbac.get_effective_roles(
         '30000000-0000-0000-0000-000000000005'::uuid,
         '10000000-0000-0000-0000-000000000001'::uuid
     ))::bigint, 1);
 
--- Dave (employee) has employee + intern via hierarchy — 2 effective roles
+-- Dave (employee) has employee + intern via hierarchy - 2 effective roles
 SELECT morbac.t_eq('Dave has 2 effective roles (employee, intern)',
     (SELECT COUNT(*) FROM morbac.get_effective_roles(
         '30000000-0000-0000-0000-000000000004'::uuid,
         '10000000-0000-0000-0000-000000000001'::uuid
     ))::bigint, 2);
 
--- Carol (manager) has manager + employee + intern via hierarchy — 3 effective roles
+-- Carol (manager) has manager + employee + intern via hierarchy - 3 effective roles
 SELECT morbac.t_eq('Carol has 3 effective roles (manager, employee, intern)',
     (SELECT COUNT(*) FROM morbac.get_effective_roles(
         '30000000-0000-0000-0000-000000000003'::uuid,
         '10000000-0000-0000-0000-000000000001'::uuid
     ))::bigint, 3);
 
--- Alice (CEO) has ceo, director, manager, employee, intern — 5 effective roles
+-- Alice (CEO) has ceo, director, manager, employee, intern - 5 effective roles
 SELECT morbac.t_eq('Alice has 5 effective roles (ceo through intern)',
     (SELECT COUNT(*) FROM morbac.get_effective_roles(
         '30000000-0000-0000-0000-000000000001'::uuid,
         '10000000-0000-0000-0000-000000000001'::uuid
     ))::bigint, 5);
 
--- get_inherited_roles for manager — manager itself + employee + intern = 3
+-- get_inherited_roles for manager - manager itself + employee + intern = 3
 SELECT morbac.t_eq('get_inherited_roles(manager) returns 3 roles (manager, employee, intern)',
     (SELECT COUNT(*) FROM morbac.get_inherited_roles(
         '20000000-0001-0000-0000-000000000003'::uuid
     ))::bigint, 3);
 
--- get_inherited_roles for ceo — entire chain = 5
+-- get_inherited_roles for ceo - entire chain = 5
 SELECT morbac.t_eq('get_inherited_roles(ceo) returns 5 roles (ceo through intern)',
     (SELECT COUNT(*) FROM morbac.get_inherited_roles(
         '20000000-0001-0000-0000-000000000001'::uuid
@@ -83,10 +83,10 @@ SELECT morbac.t('intern role appears in manager inherited roles',
     ), TRUE);
 
 -- ---------------------------------------------------------------------------
--- Section 2: Role hierarchy — authorization via inheritance (transitive)
+-- Section 2: Role hierarchy - authorization via inheritance (transitive)
 -- ---------------------------------------------------------------------------
 \echo ''
-\echo '--- 2. Role hierarchy — authorization via inheritance ---'
+\echo '--- 2. Role hierarchy - authorization via inheritance ---'
 
 -- Carol (manager) has employee permission (read documents) via 1-level inheritance
 SELECT morbac.t('Carol (manager, 1-level inherit) reads documents',
@@ -128,7 +128,7 @@ SELECT morbac.t('Carol (manager) approves documents (own perm)',
         'approve', 'documents'
     ), TRUE);
 
--- Eve (intern) cannot approve — no role above intern has approve perm
+-- Eve (intern) cannot approve - no role above intern has approve perm
 SELECT morbac.t('Eve (intern) approves documents [inheritance only goes up in seniority]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000005'::uuid,
@@ -306,7 +306,7 @@ SELECT morbac.t_eq('get_effective_activities(export) returns 2 (export, read)',
 -- Rule: employee has 'read documents' permission.
 -- With hierarchy (write->read), requesting 'write' also matches the 'read' rule.
 
--- Dave (employee) requests 'write' — matches 'read' rule via write->read hierarchy
+-- Dave (employee) requests 'write' - matches 'read' rule via write->read hierarchy
 SELECT morbac.t('Dave (employee, has read perm) writes docs via activity hierarchy',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -314,7 +314,7 @@ SELECT morbac.t('Dave (employee, has read perm) writes docs via activity hierarc
         'write', 'documents'
     ), TRUE);
 
--- Dave (employee) requests 'delete' — delete->write->read chain, 'read' rule matches
+-- Dave (employee) requests 'delete' - delete->write->read chain, 'read' rule matches
 SELECT morbac.t('Dave (employee, has read perm) deletes docs via delete->write->read hierarchy',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -322,7 +322,7 @@ SELECT morbac.t('Dave (employee, has read perm) deletes docs via delete->write->
         'delete', 'documents'
     ), TRUE);
 
--- Dave (employee) requests 'export' — export->read, 'read' rule matches
+-- Dave (employee) requests 'export' - export->read, 'read' rule matches
 SELECT morbac.t('Dave (employee, has read perm) exports docs via export->read hierarchy',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -330,7 +330,7 @@ SELECT morbac.t('Dave (employee, has read perm) exports docs via export->read hi
         'export', 'documents'
     ), TRUE);
 
--- Eve (intern) has only 'read public_data' — requesting 'write public_data' also matches
+-- Eve (intern) has only 'read public_data' - requesting 'write public_data' also matches
 SELECT morbac.t('Eve (intern, has read perm) writes public_data via activity hierarchy',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000005'::uuid,
@@ -338,7 +338,7 @@ SELECT morbac.t('Eve (intern, has read perm) writes public_data via activity hie
         'write', 'public_data'
     ), TRUE);
 
--- 'audit' is not in the hierarchy — no junior, no senior — no match for employee
+-- 'audit' is not in the hierarchy - no junior, no senior - no match for employee
 SELECT morbac.t('Dave (employee) audits documents [audit not in hierarchy, no permission]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -385,7 +385,7 @@ SELECT morbac.t('documents is in effective views of financial_data',
 -- requesting 'financial_data' -> get_effective_views('financial_data') = {financial_data, documents}
 -- the 'documents' rule matches -> access granted
 
--- Dave (employee) reads financial_data — matches employee's 'read documents' rule via view hierarchy
+-- Dave (employee) reads financial_data - matches employee's 'read documents' rule via view hierarchy
 SELECT morbac.t('Dave (employee, has read documents) reads financial_data via view hierarchy',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -393,7 +393,7 @@ SELECT morbac.t('Dave (employee, has read documents) reads financial_data via vi
         'read', 'financial_data'
     ), TRUE);
 
--- Dave (employee) reads hr_data — matches 'read documents' via view hierarchy
+-- Dave (employee) reads hr_data - matches 'read documents' via view hierarchy
 SELECT morbac.t('Dave (employee, has read documents) reads hr_data via view hierarchy',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000004'::uuid,
@@ -401,7 +401,7 @@ SELECT morbac.t('Dave (employee, has read documents) reads hr_data via view hier
         'read', 'hr_data'
     ), TRUE);
 
--- Frank (contractor) reads documents — permitted
+-- Frank (contractor) reads documents - permitted
 SELECT morbac.t('Frank (contractor) reads documents [has permission]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000006'::uuid,
@@ -409,8 +409,8 @@ SELECT morbac.t('Frank (contractor) reads documents [has permission]',
         'read', 'documents'
     ), TRUE);
 
--- Frank (contractor) reads financial_data — matches contractor's 'read documents' rule via view hierarchy
--- BUT contractor has a PROHIBITION on financial_data — prohibition wins
+-- Frank (contractor) reads financial_data - matches contractor's 'read documents' rule via view hierarchy
+-- BUT contractor has a PROHIBITION on financial_data - prohibition wins
 SELECT morbac.t('Frank (contractor) reads financial_data [prohibition overrides view-hierarchy match]',
     morbac.is_allowed_nocache(
         '30000000-0000-0000-0000-000000000006'::uuid,
@@ -436,7 +436,7 @@ SELECT morbac.t_eq('Sales Dept has 2 ancestors (self + GlobalTech HQ)',
         '10000000-0000-0000-0000-000000000003'::uuid
     ))::bigint, 2);
 
--- GlobalTech HQ is the root — only 1 ancestor (itself)
+-- GlobalTech HQ is the root - only 1 ancestor (itself)
 SELECT morbac.t_eq('GlobalTech HQ (root) has 1 ancestor (itself only)',
     (SELECT COUNT(*) FROM morbac.get_org_ancestors(
         '10000000-0000-0000-0000-000000000001'::uuid
@@ -478,17 +478,17 @@ SELECT morbac.t('Dave (GlobalTech employee) reads Engineering docs [no cross-org
     ), FALSE);
 
 -- ---------------------------------------------------------------------------
--- Section 6: get_org_scope — named scope helper
+-- Section 6: get_org_scope - named scope helper
 -- ---------------------------------------------------------------------------
 -- Org tree used in tests:
 --   GlobalTech HQ (root)   id: 10000000-0000-0000-0000-000000000001
---   ├── Engineering Dept   id: 10000000-0000-0000-0000-000000000002
---   └── Sales Dept         id: 10000000-0000-0000-0000-000000000003
+--   +-- Engineering Dept   id: 10000000-0000-0000-0000-000000000002
+--   \-- Sales Dept         id: 10000000-0000-0000-0000-000000000003
 -- ---------------------------------------------------------------------------
 \echo ''
 \echo '--- 6. get_org_scope ---'
 
--- 'self' — always returns exactly the org itself
+-- 'self' - always returns exactly the org itself
 SELECT morbac.t_eq('scope self (root) returns 1 row',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'self'))::bigint, 1);
 
@@ -501,7 +501,7 @@ SELECT morbac.t('scope self returns the org itself at depth 0',
         WHERE org_id = '10000000-0000-0000-0000-000000000002' AND depth = 0
     ), TRUE);
 
--- 'children' — direct children only (depth = 1 descendants)
+-- 'children' - direct children only (depth = 1 descendants)
 SELECT morbac.t_eq('scope children of root returns 2 rows (Engineering + Sales)',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'children'))::bigint, 2);
 
@@ -520,7 +520,7 @@ SELECT morbac.t('scope children includes Engineering at depth 1',
         WHERE org_id = '10000000-0000-0000-0000-000000000002' AND depth = 1
     ), TRUE);
 
--- 'descendants' — all descendants excluding self
+-- 'descendants' - all descendants excluding self
 SELECT morbac.t_eq('scope descendants of root returns 2 rows (Engineering + Sales, no self)',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'descendants'))::bigint, 2);
 
@@ -533,7 +533,7 @@ SELECT morbac.t('scope descendants does not include self',
 SELECT morbac.t_eq('scope descendants of leaf returns 0 rows',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'descendants'))::bigint, 0);
 
--- 'subtree' — self + all descendants
+-- 'subtree' - self + all descendants
 SELECT morbac.t_eq('scope subtree of root returns 3 rows (self + Engineering + Sales)',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'subtree'))::bigint, 3);
 
@@ -546,7 +546,7 @@ SELECT morbac.t('scope subtree includes self at depth 0',
 SELECT morbac.t_eq('scope subtree of leaf returns 1 row (self only)',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'subtree'))::bigint, 1);
 
--- 'parent' — direct parent only
+-- 'parent' - direct parent only
 SELECT morbac.t_eq('scope parent of Engineering returns 1 row (GlobalTech HQ)',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'parent'))::bigint, 1);
 
@@ -559,7 +559,7 @@ SELECT morbac.t('scope parent of Engineering returns GlobalTech HQ at depth 1',
 SELECT morbac.t_eq('scope parent of root returns 0 rows (no parent)',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'parent'))::bigint, 0);
 
--- 'ancestors' — all ancestors excluding self
+-- 'ancestors' - all ancestors excluding self
 SELECT morbac.t_eq('scope ancestors of Engineering returns 1 row (GlobalTech HQ only)',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'ancestors'))::bigint, 1);
 
@@ -572,7 +572,7 @@ SELECT morbac.t('scope ancestors does not include self',
 SELECT morbac.t_eq('scope ancestors of root returns 0 rows',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'ancestors'))::bigint, 0);
 
--- 'lineage' — self + all ancestors
+-- 'lineage' - self + all ancestors
 SELECT morbac.t_eq('scope lineage of Engineering returns 2 rows (self + GlobalTech HQ)',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'lineage'))::bigint, 2);
 
@@ -585,7 +585,7 @@ SELECT morbac.t('scope lineage includes self at depth 0',
 SELECT morbac.t_eq('scope lineage of root returns 1 row (self only)',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'lineage'))::bigint, 1);
 
--- 'root' — topmost ancestor only
+-- 'root' - topmost ancestor only
 SELECT morbac.t_eq('scope root of Engineering returns 1 row',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000002'::uuid, 'root'))::bigint, 1);
 
@@ -604,7 +604,7 @@ SELECT morbac.t('scope root of root returns the org itself',
         WHERE org_id = '10000000-0000-0000-0000-000000000001'
     ), TRUE);
 
--- p_max_depth — depth limiting
+-- p_max_depth - depth limiting
 SELECT morbac.t_eq('scope subtree max_depth=0 returns only self',
     (SELECT COUNT(*) FROM morbac.get_org_scope('10000000-0000-0000-0000-000000000001'::uuid, 'subtree', 0))::bigint, 1);
 

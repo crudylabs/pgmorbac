@@ -1,6 +1,6 @@
 -- Global rules: Rule(user_id, activity, view, context, modality)
 --
--- No org_id or role_id — applies system-wide regardless of org membership or roles.
+-- No org_id or role_id - applies system-wide regardless of org membership or roles.
 -- user_id NULL = every user; non-NULL = specific user only.
 -- activity NULL = any activity; view NULL = any view.
 --

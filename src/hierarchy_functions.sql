@@ -53,16 +53,16 @@ COMMENT ON FUNCTION morbac.get_org_descendants(UUID) IS
 -- Get a named scope of organizations relative to a given org.
 --
 -- Supported scopes:
---   'self'         — the org itself only (depth = 0)
---   'children'     — direct children only (descendants at depth = 1)
---   'descendants'  — all descendants, excluding self (depth > 0)
---   'subtree'      — self + all descendants (equivalent to get_org_descendants)
---   'parent'       — direct parent only (ancestor at depth = 1)
---   'ancestors'    — all ancestors, excluding self (depth > 0)
---   'lineage'      — self + all ancestors (equivalent to get_org_ancestors)
---   'root'         — topmost ancestor only (max depth ancestor)
---   'unattributed' — the no-org bucket; resolves to no real orgs (empty set)
---   'all'          — every organization (unattributed is not an org, so it is
+--   'self'         - the org itself only (depth = 0)
+--   'children'     - direct children only (descendants at depth = 1)
+--   'descendants'  - all descendants, excluding self (depth > 0)
+--   'subtree'      - self + all descendants (equivalent to get_org_descendants)
+--   'parent'       - direct parent only (ancestor at depth = 1)
+--   'ancestors'    - all ancestors, excluding self (depth > 0)
+--   'lineage'      - self + all ancestors (equivalent to get_org_ancestors)
+--   'root'         - topmost ancestor only (max depth ancestor)
+--   'unattributed' - the no-org bucket; resolves to no real orgs (empty set)
+--   'all'          - every organization (unattributed is not an org, so it is
 --                    not listed here; org_in_scope('all') does cover it)
 --
 -- Optional p_max_depth limits how many levels are traversed (NULL = unlimited).

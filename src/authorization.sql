@@ -17,7 +17,7 @@
 -- Scope:
 -- - rules.scope selects which objects a rule covers: a specific org
 --   (self/subtree/descendants/...), 'unattributed', or 'all'.
---   Evaluated at query time via org_in_scope() — new orgs are covered automatically.
+--   Evaluated at query time via org_in_scope() - new orgs are covered automatically.
 -- - cross_org_rules.source_org_id is always required: user must hold the role there.
 -- - user_rules target a specific user directly (no role required); their org_id
 --   is a specific org, or NULL for unattributed objects.
@@ -44,10 +44,10 @@ BEGIN
         SELECT 1 FROM morbac.system_principals WHERE user_id = p_user_id
     );
 
-    -- STEPS 1-3.5: Prohibitions — skipped entirely for system principals
+    -- STEPS 1-3.5: Prohibitions - skipped entirely for system principals
     IF NOT v_is_system_principal THEN
 
-        -- STEP 1: Local prohibitions — find the highest-priority applicable one
+        -- STEP 1: Local prohibitions - find the highest-priority applicable one
         FOR v_rule IN
             SELECT r.context_id, COALESCE(r.priority, 0) AS prio
             FROM morbac.rules r
@@ -65,7 +65,7 @@ BEGIN
             END IF;
         END LOOP;
 
-        -- STEP 2: Cross-org prohibitions — update max if a higher priority is found
+        -- STEP 2: Cross-org prohibitions - update max if a higher priority is found
         FOR v_rule IN
             SELECT cr.context_id, COALESCE(cr.priority, 0) AS prio
             FROM morbac.cross_org_rules cr
@@ -85,7 +85,7 @@ BEGIN
             END IF;
         END LOOP;
 
-        -- STEP 3: User-level prohibitions — direct user rules, update max if higher
+        -- STEP 3: User-level prohibitions - direct user rules, update max if higher
         FOR v_rule IN
             SELECT ur.context_id, COALESCE(ur.priority, 0) AS prio
             FROM morbac.user_rules ur
@@ -126,7 +126,7 @@ BEGIN
 
     END IF; -- v_is_system_principal
 
-    -- STEP 4: Local permissions — find the highest-priority applicable one
+    -- STEP 4: Local permissions - find the highest-priority applicable one
     FOR v_rule IN
         SELECT r.context_id, COALESCE(r.priority, 0) AS prio
         FROM morbac.rules r
@@ -144,7 +144,7 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- STEP 5: Cross-org permissions — update max if higher found
+    -- STEP 5: Cross-org permissions - update max if higher found
     FOR v_rule IN
         SELECT cr.context_id, COALESCE(cr.priority, 0) AS prio
         FROM morbac.cross_org_rules cr
@@ -164,7 +164,7 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- STEP 6: User-level permissions — direct user rules, update max if higher
+    -- STEP 6: User-level permissions - direct user rules, update max if higher
     FOR v_rule IN
         SELECT ur.context_id, COALESCE(ur.priority, 0) AS prio
         FROM morbac.user_rules ur

@@ -85,7 +85,7 @@ CREATE POLICY user_roles_delete ON morbac.user_roles FOR DELETE
     USING (morbac.is_allowed(morbac.current_user_id(), org_id, 'delete',
         morbac.get_config('system_view.user_roles')));
 
--- morbac.contexts (global — use current session org for writes)
+-- morbac.contexts (global - use current session org for writes)
 ALTER TABLE morbac.contexts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY contexts_select ON morbac.contexts FOR SELECT
@@ -104,7 +104,7 @@ CREATE POLICY contexts_delete ON morbac.contexts FOR DELETE
     USING (morbac.is_allowed(morbac.current_user_id(), morbac.current_org_id(), 'delete',
         morbac.get_config('system_view.contexts')));
 
--- morbac.activities (global — use current session org for writes)
+-- morbac.activities (global - use current session org for writes)
 ALTER TABLE morbac.activities ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY activities_select ON morbac.activities FOR SELECT
@@ -123,7 +123,7 @@ CREATE POLICY activities_delete ON morbac.activities FOR DELETE
     USING (morbac.is_allowed(morbac.current_user_id(), morbac.current_org_id(), 'delete',
         morbac.get_config('system_view.activities')));
 
--- morbac.views (global — use current session org for writes)
+-- morbac.views (global - use current session org for writes)
 ALTER TABLE morbac.views ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY views_select ON morbac.views FOR SELECT
@@ -180,14 +180,14 @@ CREATE POLICY user_rules_delete ON morbac.user_rules FOR DELETE
     USING (morbac.is_allowed(morbac.current_user_id(), org_id, 'delete',
         morbac.get_config('system_view.user_rules')));
 
--- morbac.system_principals (no org_id — SELECT only; INSERT/UPDATE/DELETE reserved for DB owner)
+-- morbac.system_principals (no org_id - SELECT only; INSERT/UPDATE/DELETE reserved for DB owner)
 ALTER TABLE morbac.system_principals ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY system_principals_select ON morbac.system_principals FOR SELECT
     USING (morbac.is_allowed(morbac.current_user_id(), morbac.current_org_id(), 'read',
         morbac.get_config('system_view.system_principals')));
 
--- morbac.global_rules (no org_id — use current session org for write checks)
+-- morbac.global_rules (no org_id - use current session org for write checks)
 ALTER TABLE morbac.global_rules ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY global_rules_select ON morbac.global_rules FOR SELECT

@@ -1,17 +1,17 @@
 -- Core OrBAC rule relation: Rule(org, role, activity, view, context, modality)
 --
 -- scope controls which orgs this rule covers relative to org_id:
---   'self'        — exact org only (default, current behavior)
---   'subtree'     — org + all descendants
---   'descendants' — all descendants, excluding self
---   'children'    — direct children only
---   'parent'      — direct parent only
---   'ancestors'   — all ancestors, excluding self
---   'lineage'     — self + all ancestors
---   'root'        — topmost ancestor only
---   'unattributed' — no-org objects only (org_id column above is the declaring authority)
---   'all'         — every org, unattributed included
--- Evaluated at query time via org_in_scope() — new orgs are picked up automatically.
+--   'self'         - exact org only (default, current behavior)
+--   'subtree'      - org + all descendants
+--   'descendants'  - all descendants, excluding self
+--   'children'     - direct children only
+--   'parent'       - direct parent only
+--   'ancestors'    - all ancestors, excluding self
+--   'lineage'      - self + all ancestors
+--   'root'         - topmost ancestor only
+--   'unattributed' - no-org objects only (org_id column above is the declaring authority)
+--   'all'          - every org, unattributed included
+-- Evaluated at query time via org_in_scope() - new orgs are picked up automatically.
 --
 -- Org target vocabulary: a specific org (the tree scopes), 'unattributed', or 'all'.
 
@@ -44,7 +44,7 @@ INCLUDE (role_id, context_id)
 WHERE is_active = true;
 
 COMMENT ON TABLE morbac.rules IS 'Core OrBAC rules - Permission, Prohibition, Obligation, Recommendation';
-COMMENT ON COLUMN morbac.rules.scope IS 'Object scope: self (default), subtree, descendants, children, parent, ancestors, lineage, root, unattributed, all. Selects which objects (by org) the rule reaches: a specific org via the tree scopes, unattributed for no-org objects only, or all for every org including unattributed. Evaluated at query time — new orgs are covered automatically.';
+COMMENT ON COLUMN morbac.rules.scope IS 'Object scope: self (default), subtree, descendants, children, parent, ancestors, lineage, root, unattributed, all. Selects which objects (by org) the rule reaches: a specific org via the tree scopes, unattributed for no-org objects only, or all for every org including unattributed. Evaluated at query time - new orgs are covered automatically.';
 COMMENT ON COLUMN morbac.rules.modality IS 'Deontic modality: permission, prohibition, obligation, recommendation';
 COMMENT ON COLUMN morbac.rules.priority IS 'Optional rule priority (higher wins). NULL = 0. A permission with higher priority than a prohibition overrides it.';
 
