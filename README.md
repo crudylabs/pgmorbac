@@ -34,7 +34,7 @@ A PostgreSQL extension implementing the Multi-OrBAC access control model - enabl
 
 ```bash
 # Clone repository
-git clone https://git.villains.fr/crudy/pgmorbac.git
+git clone https://github.com/crudylabs/pgmorbac.git
 cd pgmorbac
 
 # Build and install extension
@@ -257,7 +257,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ```bash
-git clone https://git.villains.fr/crudy/pgmorbac.git
+git clone https://github.com/crudylabs/pgmorbac.git
 cd pgmorbac
 
 # Edit source files in src/
@@ -278,7 +278,7 @@ git push --tags
 ## Support
 
 - Read the [documentation](https://pgmorbac.villains.fr)
-- Report bugs via [Gitea Issues](https://git.villains.fr/crudy/pgmorbac/issues)
+- Report bugs via [GitHub Issues](https://github.com/crudylabs/pgmorbac/issues)
 - Security issues: see [SECURITY.md](SECURITY.md)
 
 ## Comparison with Traditional RBAC

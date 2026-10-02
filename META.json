@@ -24,11 +24,11 @@
   "resources": {
     "homepage": "https://pgmorbac.villains.fr",
     "bugtracker": {
-      "web": "https://git.villains.fr/crudy/pgmorbac/issues"
+      "web": "https://github.com/crudylabs/pgmorbac/issues"
     },
     "repository": {
-      "url": "https://git.villains.fr/crudy/pgmorbac.git",
-      "web": "https://git.villains.fr/crudy/pgmorbac",
+      "url": "https://github.com/crudylabs/pgmorbac.git",
+      "web": "https://github.com/crudylabs/pgmorbac",
       "type": "git"
     }
   },
