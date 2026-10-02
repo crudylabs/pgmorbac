@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-07-25
 
 ### Added
+- npm package `@crudy/pgmorbac`: the install and upgrade scripts with `extensionSql()`, `upgradeScripts()`, `version` and `sqlDir`
 - First stable release of the Multi-OrBAC PostgreSQL extension
 - Complete Multi-OrBAC implementation based on CNRS research paper
 - Core features:
