@@ -1,11 +1,19 @@
-# pgmorbac
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/brand/logo-dark.svg">
+    <img alt="pgmorbac" src=".github/brand/logo-light.svg" height="110">
+  </picture>
+</h1>
 
-**Multi-Organization Based Access Control for PostgreSQL**
+<p align="center"><strong>Multi-Organization Based Access Control for PostgreSQL</strong></p>
+
+<p align="center">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-10b981.svg"></a>
+  <a href="https://www.npmjs.com/package/@crudy/pgmorbac"><img alt="npm" src="https://img.shields.io/npm/v/@crudy/pgmorbac.svg?color=10b981"></a>
+  <a href="https://www.postgresql.org/"><img alt="PostgreSQL 13+" src="https://img.shields.io/badge/PostgreSQL-13%2B-047857.svg"></a>
+</p>
 
 A PostgreSQL extension implementing the Multi-OrBAC access control model - enabling organization-centric, context-aware, and hierarchical access control with advanced features like delegation, separation of duty, and cross-organizational policies.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PostgreSQL 13+](https://img.shields.io/badge/PostgreSQL-13%2B-blue.svg)](https://www.postgresql.org/)
 
 ## Features
 
