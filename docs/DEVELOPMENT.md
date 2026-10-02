@@ -64,7 +64,7 @@ dropdb mytest
 ```bash
 git commit -m "Release vX.Y.Z"
 git tag vX.Y.Z
-git push origin main --tags
+git push origin master --tags
 ```
 
 ## Makefile Targets
