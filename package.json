@@ -20,7 +20,7 @@
   "homepage": "https://pgmorbac.crudy.fr",
   "repository": {
     "type": "git",
-    "url": "https://github.com/crudylabs/pgmorbac.git"
+    "url": "git+https://github.com/crudylabs/pgmorbac.git"
   },
   "bugs": {
     "url": "https://github.com/crudylabs/pgmorbac/issues"
