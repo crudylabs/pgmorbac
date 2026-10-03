@@ -9,6 +9,7 @@ pgmorbac/
 ├── tools/                  # Build and test scripts
 ├── docs/                   # Documentation
 ├── pgmorbac.control       # Version source of truth
+├── index.js, index.d.ts   # npm package loader (@crudy/pgmorbac)
 ├── pgmorbac.sql          # Generated (git-ignored)
 └── Makefile               # Build automation
 ```
@@ -56,15 +57,31 @@ dropdb mytest
 
 ## Release Process
 
-1. Update version in `pgmorbac.control`
+1. `./tools/bump_version.sh X.Y.Z` (control file, META.json, package.json, README)
 2. Update `CHANGELOG.md`
 3. Run `make build` and `make check`
 4. Commit and tag:
 
 ```bash
-git commit -m "Release vX.Y.Z"
+git commit -am "release: X.Y.Z"
 git tag vX.Y.Z
 git push origin master --tags
+```
+
+5. Signed SQL distribution, attached to the Gitea release (Drone does this on the
+   tag when the repository is activated there):
+
+```bash
+PGMORBAC_RELEASE_KEY=<path to the Ed25519 key> GITEA_URL=https://git.villains.fr \
+  GITEA_REPO=crudy/pgmorbac GITEA_TOKEN=<token> npm run release
+```
+
+6. npm package `@crudy/pgmorbac` (the SQL is built from `src/` on prepack). Publish
+   the same version to the local Verdaccio, for crudy development, and to npmjs:
+
+```bash
+npm publish --registry http://localhost:4873
+npm publish --registry https://registry.npmjs.org
 ```
 
 ## Makefile Targets

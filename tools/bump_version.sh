@@ -46,6 +46,11 @@ sed -i.bak \
     "$META_FILE"
 echo "  Updated $META_FILE"
 
+# --- package.json (the @crudy/pgmorbac npm package) ---
+PACKAGE_FILE="$ROOT_DIR/package.json"
+sed -i.bak "s/\"version\": \"$OLD_VERSION\"/\"version\": \"$NEW_VERSION\"/" "$PACKAGE_FILE"
+echo "  Updated $PACKAGE_FILE"
+
 # --- README.md (hardcoded version references in manual install section) ---
 sed -i.bak \
     -e "s/pgmorbac--$OLD_VERSION\.sql/pgmorbac--$NEW_VERSION.sql/g" \
