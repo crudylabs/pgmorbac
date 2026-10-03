@@ -1,0 +1,32 @@
+# Cuts the signed PGXN distribution and publishes it as a GitHub release on
+# version tags (v<major>.<minor>.<patch>). Secret: PGMORBAC_RELEASE_KEY, the
+# Ed25519 private key PEM (content, not a path).
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - name: Build and sign
+        env:
+          PGMORBAC_RELEASE_KEY_PEM: ${{ secrets.PGMORBAC_RELEASE_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$PGMORBAC_RELEASE_KEY_PEM" > "$RUNNER_TEMP/release-key.pem"
+          PGMORBAC_RELEASE_KEY="$RUNNER_TEMP/release-key.pem" node scripts/build-dist.mjs
+      - name: Publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/github-release.mjs

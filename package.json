@@ -6,7 +6,7 @@
   "description": "Release tooling for the pgmorbac PostgreSQL extension (build + sign + publish the PGXN distribution).",
   "scripts": {
     "dist": "node scripts/build-dist.mjs",
-    "release": "node scripts/build-dist.mjs && node scripts/gitea-release.mjs"
+    "release": "node scripts/build-dist.mjs && node scripts/github-release.mjs"
   },
   "devDependencies": {
     "jose": "^5"

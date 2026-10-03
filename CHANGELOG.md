@@ -55,4 +55,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `rls_check(activity, view, row_org_id[, row_user_id])` for row-scoped tables
     where a NULL `row_org_id` means the record is unattributed
 
-[1.0.0]: https://git.villains.fr/crudy/pgmorbac/releases/tag/v1.0.0
+[1.0.0]: https://github.com/crudylabs/pgmorbac/releases/tag/v1.0.0

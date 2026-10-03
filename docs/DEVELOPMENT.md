@@ -67,12 +67,13 @@ git tag vX.Y.Z
 git push origin master --tags
 ```
 
-5. Signed SQL distribution, attached to the Gitea release (Drone does this on the
-   tag when the repository is activated there):
+5. Signed SQL distribution, attached to the GitHub release. The `release`
+   workflow does this on the tag, signing with the `PGMORBAC_RELEASE_KEY`
+   repository secret. By hand:
 
 ```bash
-PGMORBAC_RELEASE_KEY=<path to the Ed25519 key> GITEA_URL=https://git.villains.fr \
-  GITEA_REPO=crudy/pgmorbac GITEA_TOKEN=<token> npm run release
+PGMORBAC_RELEASE_KEY=<path to the Ed25519 key> GITHUB_REPOSITORY=crudylabs/pgmorbac \
+  GITHUB_TOKEN=<token> npm run release
 ```
 
 6. The npm package `@crudy/pgmorbac` is released from the `pgmorbac-node`

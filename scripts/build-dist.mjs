@@ -66,7 +66,7 @@ include $(PGXS)
 
 writeFileSync(join(stageDir, 'README-INSTALL.md'), `# Installing pgmorbac ${version}
 
-Full documentation: https://pgmorbac.villains.fr
+Full documentation: ${meta.resources.homepage}
 
 ## As a PostgreSQL extension (recommended)
 

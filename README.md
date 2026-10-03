@@ -293,7 +293,7 @@ git push --tags
 
 ## Support
 
-- Read the [documentation](https://pgmorbac.villains.fr)
+- Read the [documentation](https://pgmorbac.crudy.fr)
 - Report bugs via [GitHub Issues](https://github.com/crudylabs/pgmorbac/issues)
 - Security issues: see [SECURITY.md](SECURITY.md)
 
