@@ -9,7 +9,6 @@ pgmorbac/
 ├── tools/                  # Build and test scripts
 ├── docs/                   # Documentation
 ├── pgmorbac.control       # Version source of truth
-├── index.js, index.d.ts   # npm package loader (@crudy/pgmorbac)
 ├── pgmorbac.sql          # Generated (git-ignored)
 └── Makefile               # Build automation
 ```
@@ -57,7 +56,7 @@ dropdb mytest
 
 ## Release Process
 
-1. `./tools/bump_version.sh X.Y.Z` (control file, META.json, package.json, README)
+1. `./tools/bump_version.sh X.Y.Z` (control file, META.json, README)
 2. Update `CHANGELOG.md`
 3. Run `make build` and `make check`
 4. Commit and tag:
@@ -76,13 +75,8 @@ PGMORBAC_RELEASE_KEY=<path to the Ed25519 key> GITEA_URL=https://git.villains.fr
   GITEA_REPO=crudy/pgmorbac GITEA_TOKEN=<token> npm run release
 ```
 
-6. npm package `@crudy/pgmorbac` (the SQL is built from `src/` on prepack). Publish
-   the same version to the local Verdaccio, for crudy development, and to npmjs:
-
-```bash
-npm publish --registry http://localhost:4873
-npm publish --registry https://registry.npmjs.org
-```
+6. The npm package `@crudy/pgmorbac` is released from the `pgmorbac-node`
+   repository, which packs the SQL of this signed release.
 
 ## Makefile Targets
 

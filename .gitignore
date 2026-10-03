@@ -20,6 +20,3 @@ Thumbs.db
 node_modules/
 dist/
 package-lock.json
-
-# npm package build output (scripts/build-package-sql.mjs)
-/sql/

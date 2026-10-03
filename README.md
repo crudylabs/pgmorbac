@@ -79,21 +79,11 @@ psql -d mydb -c "CREATE EXTENSION pgmorbac;"
 
 ### From Node.js (npm)
 
-`@crudy/pgmorbac` ships the same install and upgrade scripts for projects that
-apply SQL through a migration runner instead of `CREATE EXTENSION`:
-
-```bash
-npm install @crudy/pgmorbac
-```
-
-```js
-import { extensionSql, upgradeScripts, version, sqlDir } from '@crudy/pgmorbac';
-
-await client.query(extensionSql());          // pgmorbac--<version>.sql
-for (const u of upgradeScripts()) {          // pgmorbac--<from>--<to>.sql, in order
-    await client.query(u.sql);
-}
-```
+[`@crudy/pgmorbac`](https://www.npmjs.com/package/@crudy/pgmorbac) ships the
+install and upgrade scripts of each signed release for Node projects and migration
+runners, and [`@crudy/pgmorbac-fastify`](https://www.npmjs.com/package/@crudy/pgmorbac-fastify)
+adds Fastify helpers on top. Sources: [pgmorbac-node](https://github.com/crudylabs/pgmorbac-node),
+[pgmorbac-fastify](https://github.com/crudylabs/pgmorbac-fastify).
 
 ## Quick Start
 

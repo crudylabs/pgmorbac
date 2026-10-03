@@ -1,57 +1,12 @@
 {
-  "name": "@crudy/pgmorbac",
+  "name": "pgmorbac-release-tools",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
-  "description": "Multi-OrBAC for PostgreSQL: the pgmorbac extension SQL, packaged for Node.js projects and migration runners",
-  "keywords": [
-    "pgmorbac",
-    "morbac",
-    "orbac",
-    "rbac",
-    "authorization",
-    "access-control",
-    "postgresql",
-    "postgresql-extension",
-    "row-level-security",
-    "multi-tenant"
-  ],
-  "author": "Marc Villain",
-  "license": "MIT",
-  "homepage": "https://pgmorbac.crudy.fr",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/crudylabs/pgmorbac.git"
-  },
-  "bugs": {
-    "url": "https://github.com/crudylabs/pgmorbac/issues"
-  },
-  "exports": {
-    ".": {
-      "types": "./index.d.ts",
-      "default": "./index.js"
-    }
-  },
-  "main": "./index.js",
-  "types": "./index.d.ts",
-  "files": [
-    "index.js",
-    "index.d.ts",
-    "sql",
-    "pgmorbac.control",
-    "README.md",
-    "CHANGELOG.md",
-    "LICENSE"
-  ],
-  "engines": {
-    "node": ">=18"
-  },
+  "description": "Release tooling for the pgmorbac PostgreSQL extension (build + sign + publish the PGXN distribution).",
   "scripts": {
-    "prepack": "node scripts/build-package-sql.mjs",
     "dist": "node scripts/build-dist.mjs",
     "release": "node scripts/build-dist.mjs && node scripts/gitea-release.mjs"
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "devDependencies": {
     "jose": "^5"
