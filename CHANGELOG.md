@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-14
+
+### Fixed
+- `is_allowed_nocache()` (and so every uncached `is_allowed()`) resolved the
+  user's roles once per row of the whole `rules` table, calling
+  `get_comprehensive_roles()` and `org_in_scope()` for every rule of every
+  tenant: about 240 ms per decision with 2376 rules across 27 orgs. Roles are
+  now resolved once per org where the user can hold one and that has a rule for
+  the requested activity and view, and matching rules are read through those
+  (org, role) pairs; `org_in_scope()` runs once per (org, scope) pair. Cost no
+  longer grows with other tenants' rules. Decisions are unchanged, checked
+  against the 1.0.0 implementation on a randomized fixture
+  (`tests/17_is_allowed_equivalence.sql`).
+- `tools/bump_version.sh` no longer rewrites the PGXN `meta-spec` version in
+  `META.json`.
+
 ## [1.0.0] - 2026-07-25
 
 ### Added
@@ -55,4 +71,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `rls_check(activity, view, row_org_id[, row_user_id])` for row-scoped tables
     where a NULL `row_org_id` means the record is unattributed
 
+[1.0.1]: https://github.com/crudylabs/pgmorbac/releases/tag/v1.0.1
 [1.0.0]: https://github.com/crudylabs/pgmorbac/releases/tag/v1.0.0

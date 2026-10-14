@@ -40,8 +40,9 @@ sed -i.bak "s/default_version = '$OLD_VERSION'/default_version = '$NEW_VERSION'/
 echo "  Updated $CONTROL_FILE"
 
 # --- META.json ---
+# The meta-spec block carries the PGXN spec version, not ours
 sed -i.bak \
-    -e "s/\"version\": \"$OLD_VERSION\"/\"version\": \"$NEW_VERSION\"/g" \
+    -e "/\"meta-spec\"/,/}/!s/\"version\": \"$OLD_VERSION\"/\"version\": \"$NEW_VERSION\"/g" \
     -e "s/pgmorbac--$OLD_VERSION\.sql/pgmorbac--$NEW_VERSION.sql/g" \
     "$META_FILE"
 echo "  Updated $META_FILE"
