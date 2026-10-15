@@ -1,23 +1,50 @@
 # Cuts the signed PGXN distribution and publishes it as a GitHub release on
-# version tags (v<major>.<minor>.<patch>). Secret: PGMORBAC_RELEASE_KEY, the
-# Ed25519 private key PEM (content, not a path).
+# version tags (v<major>.<minor>.<patch>), or for an existing tag on manual
+# dispatch. Secret: PGMORBAC_RELEASE_KEY, the Ed25519 private key PEM (content,
+# not a path). The organisation only allows its own actions, so checkout and
+# Node setup are plain shell: git over the job token, and the official Node
+# tarball checked against its published SHA-256.
 name: release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to release (e.g. v1.0.1)
+        required: true
 
 permissions:
   contents: write
+
+env:
+  NODE_VERSION: v24.12.0
+  RELEASE_REF: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
+      - name: Check out the tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          case "$RELEASE_REF" in v[0-9]*.[0-9]*.[0-9]*) ;; *) echo "not a version tag: $RELEASE_REF" >&2; exit 1 ;; esac
+          git init -q .
+          git -c http.extraheader="AUTHORIZATION: bearer $GITHUB_TOKEN" fetch -q --depth 1 \
+            "https://github.com/$GITHUB_REPOSITORY" "refs/tags/$RELEASE_REF:refs/tags/$RELEASE_REF"
+          git checkout -q "refs/tags/$RELEASE_REF"
+      - name: Install Node
+        run: |
+          base="https://nodejs.org/dist/$NODE_VERSION"
+          file="node-$NODE_VERSION-linux-x64.tar.xz"
+          curl -fsSLO "$base/$file"
+          curl -fsSL "$base/SHASUMS256.txt" | grep " $file\$" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/node"
+          tar -xJf "$file" -C "$RUNNER_TEMP/node" --strip-components=1
+          rm "$file"
+          echo "$RUNNER_TEMP/node/bin" >> "$GITHUB_PATH"
       - run: npm install --no-audit --no-fund
       - name: Build and sign
         env:
