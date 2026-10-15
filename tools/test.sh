@@ -45,7 +45,7 @@ for test_file in "$TEST_DIR"/[0-9][0-9]_*.sql; do
     [ -f "$test_file" ] || continue
 
     test_name=$(basename "$test_file" .sql)
-    ((total_files++))
+    total_files=$((total_files + 1))
 
     output=$(psql -U "$PG_USER" -d "$DB" -f "$test_file" 2>&1)
     exit_code=$?
@@ -59,7 +59,7 @@ for test_file in "$TEST_DIR"/[0-9][0-9]_*.sql; do
     total_fail=$((total_fail + file_fail))
 
     if [ $exit_code -ne 0 ] || [ "$file_fail" -gt 0 ] || [ "$file_errors" -gt 0 ]; then
-        ((failed_files++))
+        failed_files=$((failed_files + 1))
         echo "  [FAIL] $test_name — ${file_pass} passed, ${file_fail} failed, ${file_errors} SQL error(s)"
         # Print only failing lines for a focused view
         if [ "$file_errors" -gt 0 ]; then
@@ -69,7 +69,7 @@ for test_file in "$TEST_DIR"/[0-9][0-9]_*.sql; do
             echo "$output" | grep "CHECK FAIL:" | sed 's/^/         /'
         fi
     else
-        ((passed_files++))
+        passed_files=$((passed_files + 1))
         echo "  [PASS] $test_name — ${file_pass} assertion(s) passed"
     fi
 done

@@ -51,7 +51,7 @@ for filename in "${BUILD_FILES[@]}"; do
     if [ -f "$filepath" ]; then
         cat "$filepath" >> "$OUTPUT"
         echo "" >> "$OUTPUT"
-        ((file_count++))
+        file_count=$((file_count + 1))
     else
         echo "Warning: $filename not found, skipping" >&2
     fi
