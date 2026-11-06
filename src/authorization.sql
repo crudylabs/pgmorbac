@@ -57,6 +57,11 @@ DECLARE
     v_cross_context            UUID[];
     v_cross_prio               INTEGER[];
 BEGIN
+    -- No principal, no decision: the same answer rls_check() gives.
+    IF p_user_id IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
     v_is_system_principal := EXISTS (
         SELECT 1 FROM morbac.system_principals WHERE user_id = p_user_id
     );
@@ -310,6 +315,10 @@ DECLARE
     v_computed_result BOOLEAN;
     v_expires_at TIMESTAMPTZ;
 BEGIN
+    IF p_user_id IS NULL THEN
+        RETURN FALSE;
+    END IF;
+
     SELECT allowed, expires_at INTO v_cached_result, v_expires_at
     FROM morbac.auth_cache
     WHERE user_id = p_user_id
